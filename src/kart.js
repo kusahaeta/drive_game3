@@ -232,6 +232,7 @@ export class Kart {
     this.driftLevel = 0;
     this.hopPending = false;
     this.offroad = false;
+    this.inWater = false;
     this.bodyYaw = 0;
     this.wheelSpin = 0;
     this.wrongWayTime = 0;
@@ -325,12 +326,17 @@ export class Kart {
     this.offroad = Math.abs(this.proj.lateral) > path.halfWidth + 0.8;
     let top = this.maxSpeed * this.speedMult;
     if (this.offroad && this.boostTimer <= 0) top *= 0.52;
+    // 海に沈んだ道では水の抵抗で少し遅くなる
+    const wasInWater = this.inWater;
+    this.inWater = track.shallows?.length > 0 && !this.airborne && this.proj.groundY < track.theme.waterLevel - 0.05;
+    if (this.inWater !== wasInWater && Math.abs(this.speed) > 4) race.emit("splash", this);
+    if (this.inWater && this.boostTimer <= 0) top *= 0.84;
     if (this.boostTimer > 0) top += 11;
 
     const flying = this.airborne && this.launched;
     if (flying) this.speed *= 1 - 0.04 * dt;
     else if (spinning) this.speed = damp(this.speed, 0, 2.5, dt);
-    else if (this.speed > top + 0.5) this.speed = damp(this.speed, top, this.offroad ? 2.5 : 1.2, dt);
+    else if (this.speed > top + 0.5) this.speed = damp(this.speed, top, this.offroad || this.inWater ? 2.5 : 1.2, dt);
     else if (throttle && !brake) {
       const a = this.speed < 0 ? this.brakeForce : this.accel * (1 - (0.55 * this.speed) / top);
       this.speed = Math.min(top, this.speed + a * dt);

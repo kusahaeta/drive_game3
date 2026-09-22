@@ -180,6 +180,7 @@ export class Track {
     this.banks = of("bank").map(span);
     this.ruins = of("ruins").map(span);
     this.ice = of("ice").map(span);
+    this.shallows = of("shallows").map(span);
 
     for (let i = 0; i < this.count; i++) {
       const s = i * this.segLen;
@@ -188,6 +189,28 @@ export class Track {
       this.tunnelF[i] = this.inAny(this.tunnels, s) ? 1 : 0;
       this.cliffL[i] = this.cliffSide(s, 1) ? 1 : 0;
       this.cliffR[i] = this.cliffSide(s, -1) ? 1 : 0;
+    }
+    // 海に沈んだ道：海面より depth だけ沈める（区間の端はなめらかな坂で海へ入る・出る。深いほど坂が長い）
+    this.seaF = new Float32Array(this.count);
+    for (const r of this.shallows) {
+      const ramp = Math.min(r.ramp ?? Math.max(30, (r.depth ?? 0.4) * 8), r.len / 2.2);
+      const target = this.theme.waterLevel - (r.depth ?? 0.4);
+      for (let i = 0; i < this.count; i++) {
+        const d = this.wrapS(i * this.segLen - r.s0);
+        if (d > r.len) continue;
+        const w = smoothstep(0, ramp, d) * smoothstep(0, ramp, r.len - d);
+        this.py[i] = lerp(this.py[i], target, w);
+        this.seaF[i] = Math.max(this.seaF[i], w);
+      }
+    }
+    if (this.shallows.length) {
+      const N = this.count;
+      const py = this.py;
+      for (let i = 0; i < N; i++) {
+        const a = (i - 2 + N) % N;
+        const b = (i + 2) % N;
+        if (this.seaF[i] > 0 || this.seaF[a] > 0 || this.seaF[b] > 0) this.slope[i] = (py[(i + 1) % N] - py[(i - 1 + N) % N]) / (2 * this.segLen);
+      }
     }
     // バンク：カーブの外側が高くなるように自動で向きを決める
     for (const b of this.banks) {

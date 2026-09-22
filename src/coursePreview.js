@@ -12,6 +12,7 @@ const COLORS = {
   ice: "#8fd8ff",
   bridge: "#b07a3e",
   cliff: "#ffb400",
+  shallows: "#2fb8ff",
 };
 
 export const FEATURE_LABELS = [
@@ -20,6 +21,7 @@ export const FEATURE_LABELS = [
   ["gaps", "ジャンプ", COLORS.gap],
   ["cliffs", "崖道", COLORS.cliff],
   ["ice", "凍った道", COLORS.ice],
+  ["shallows", "海の中の道", COLORS.shallows],
 ];
 
 export function drawCoursePreview(canvas, track) {
@@ -79,6 +81,7 @@ export function drawCoursePreview(canvas, track) {
 
   // コースの仕掛け
   ctx.lineCap = "butt";
+  for (const f of track.shallows) strokeRange(track, f.s0, f.len, COLORS.shallows, roadW * 0.55);
   for (const f of track.ice) strokeRange(track, f.s0, f.len, COLORS.ice, roadW * 0.55);
   for (const f of track.bridges) strokeRange(track, f.s0, f.len, COLORS.bridge, roadW);
   for (const f of track.cliffs) strokeRange(track, f.s0, f.len, COLORS.cliff, roadW * 0.4, [3, 3]);

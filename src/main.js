@@ -64,6 +64,7 @@ let race = null;
 let mode = "title"; // title | race | paused | results
 let trackIndex = 0;
 let difficulty = "normal";
+let underwater = null; // カメラが水中か
 const cam = { yaw: 0, orbit: 0, focus: 0, focusTimer: 0 };
 
 function setScreen(name) {
@@ -85,6 +86,7 @@ function loadRace(demo) {
   const th = race.track.theme;
   scene.fog = new THREE.Fog(th.fog, th.fogNear, th.fogFar);
   scene.background = new THREE.Color(th.skyBottom);
+  underwater = null;
   sun.color.set(th.sun);
   // 明るさ（宇宙コースなどで変える）
   const light = { hemiSky: "#e4f2ff", hemiGround: "#6a7f4a", hemi: 1.5, sun: 2.6, ...th.light };
@@ -268,6 +270,21 @@ function updateCamera(dt, snap = false) {
   race.track.snowfall?.userData.center.copy(camera.position);
 }
 
+// カメラが海に沈んだら青いフォグで水中の見た目に（海に沈んだ道のあるコースだけ）
+function updateUnderwater() {
+  const track = race.track;
+  const on = !!track.shallows?.length && camera.position.y < track.theme.waterLevel - 0.1;
+  if (on === underwater) return;
+  underwater = on;
+  const th = track.theme;
+  scene.fog.color.set(on ? th.underwaterFog ?? "#0f6f9c" : th.fog);
+  scene.fog.near = on ? 2 : th.fogNear;
+  scene.fog.far = on ? 110 : th.fogFar;
+  scene.background.set(on ? th.underwaterFog ?? "#0f6f9c" : th.skyBottom);
+  track.sky.visible = !on;
+  sound.underwater(on && !race.demo);
+}
+
 // ---------------------------------------------------------------- メインループ
 const clock = new THREE.Clock();
 
@@ -288,6 +305,7 @@ function frame() {
     race.update(dt, input);
     particles.update(dt);
     if (!window.kartGP.freeCam) updateCamera(dt);
+    updateUnderwater();
     if (mode === "race") {
       hud.update(race, dt);
       if (race.state === "done") showResults();

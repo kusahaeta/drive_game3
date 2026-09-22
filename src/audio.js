@@ -15,7 +15,11 @@ class Sound {
     const ctx = (this.ctx = new AC());
     this.master = ctx.createGain();
     this.master.gain.value = this.muted ? 0 : 0.35;
-    this.master.connect(ctx.destination);
+    // 水中では高音をカットしてこもった音に
+    this.muffle = ctx.createBiquadFilter();
+    this.muffle.type = "lowpass";
+    this.muffle.frequency.value = 20000;
+    this.master.connect(this.muffle).connect(ctx.destination);
 
     this.engFilter = ctx.createBiquadFilter();
     this.engFilter.type = "lowpass";
@@ -37,6 +41,12 @@ class Sound {
     this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
     const data = this.noiseBuf.getChannelData(0);
     for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  }
+
+  underwater(on) {
+    if (!this.ctx || this.isUnderwater === on) return;
+    this.isUnderwater = on;
+    this.muffle.frequency.setTargetAtTime(on ? 500 : 20000, this.ctx.currentTime, 0.08);
   }
 
   engine(ratio, boosting, active) {
@@ -116,6 +126,8 @@ class Sound {
       case "meteor":
         this.noise(0.6, 0.3, 700);
         return this.tone(160, 0.5, { type: "sawtooth", slide: -100, vol: 0.12 });
+      case "splash":
+        return this.noise(0.45, 0.18, 1500);
       case "bump":
         return this.noise(0.1, 0.15, 600);
       case "lap":

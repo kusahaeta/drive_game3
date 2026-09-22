@@ -26,6 +26,8 @@
  *     { type: "bank",   from, to, angle: 12 }      カーブの外側が高いバンク（向きは自動）
  *     { type: "ruins",  from, to }                 苔むした石柱・石のアーチ・脇に神殿が並ぶ遺跡
  *     { type: "ice",    from, to }                 つるつる滑る凍った路面
+ *     { type: "shallows", from, to, depth: 0.4, ramp }  海に沈んだ道（海面より depth 下を走る。少し遅くなる。
+ *                  depth を大きくすると完全に潜り、水中はカメラが青くかすむ。ramp は出入りの坂の長さ（既定 depth×8、最低 30）
  *   branches     分かれ道（src/branch.js 参照）。メインコースの from で分かれ、points を通って to で合流する:
  *     { from, to, points: [[x, y, z], ...], width, shoulderWidth, noWalls, elevated, itemBoxRows, boostPads, aiChance }
  *     noWalls: 壁なし（はみ出すと落ちる）, elevated: 下を谷（水・溶岩）まで掘り下げる, aiChance: NPC がこの道を選ぶ確率
@@ -45,6 +47,7 @@
  *   theme.bridgeStyle: "wood" で橋が木の吊り橋に、theme.roadCenter: false で中央線なし
  *   theme.space: true で宇宙コース（地形・木なし、星空と惑星、虹色の光る道、ネオンの柵）。scenery.rings で光の輪の数
  *   theme.light: { hemiSky, hemiGround, hemi, sun } で明るさを変える
+ *   theme.underwaterFog で水中の色（既定 #0f6f9c）、theme.waterOpacity で水面の不透明度（既定 0.86。浅瀬の道を見せるなら低めに）
  *   theme.frozen: true で水面が凍った湖に、theme.snowfall: true で雪が降る
  *   theme.lava: true で水面が溶岩に（落ちるとコースに戻される）
  *   theme.castle: true で城壁風の柵（胸壁と松明）、theme.roadBricks: true で石畳、theme.wallHeight で柵の高さ
@@ -58,5 +61,6 @@ import jungleRuins from "./jungleRuins.js";
 import starlightRoad from "./starlightRoad.js";
 import snowPeak from "./snowPeak.js";
 import magmaCastle from "./magmaCastle.js";
+import seasideBay from "./seasideBay.js";
 
-export const TRACKS = [sunnyCircuit, jungleRuins, snowPeak, magmaCastle, starlightRoad];
+export const TRACKS = [sunnyCircuit, jungleRuins, snowPeak, magmaCastle, seasideBay, starlightRoad];

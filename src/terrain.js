@@ -65,6 +65,8 @@ export function buildTerrain(track) {
   const canyonL = blur((i) => (track.gapF[i] || track.bridgeF[i] || track.cliffL[i] ? 1 : 0));
   const canyonR = blur((i) => (track.gapF[i] || track.bridgeF[i] || track.cliffR[i] ? 1 : 0));
   const under = blur((i) => (track.gapF[i] || track.bridgeF[i] ? 1 : 0));
+  // 浅瀬の区間は道の周りを海底まで掘り下げる
+  const sea = track.shallows?.length ? blur((i) => track.seaF[i]) : null;
   // 枝道：elevated なら道の下と両側を谷に（分岐・合流の端はなめらかに）
   const branchCanyon = (b, i) => (b.canyon ? smoothstep(b.splitLen, b.splitLen + 20, i * b.segLen) * smoothstep(b.mergeLen, b.mergeLen + 20, b.length - i * b.segLen) : 0);
 
@@ -111,6 +113,11 @@ export function buildTerrain(track) {
         const t = smoothstep(pwo + 4 + c * 20, pwo + 45 + c * 70, d);
         h = lerp(target, h, t);
         if (d < pwo + 8 && c < 0.5) h = Math.min(h, ground0);
+        if (sea && isMain && sea[i] > 0) {
+          const w = sea[i] * smoothstep(pwo + 1, pwo + 20, d) * (1 - smoothstep(pwo + 70, pwo + 220, d));
+          // 海底は水面から 3m か、道より少し下の深い方
+          h = lerp(h, Math.min(h, th.waterLevel - 3, ground0 - 1), w);
+        }
         if (d < pwo + (track.def.scenery?.clearance ?? 14)) flags[k] = 1;
         if (path.tunnelF[i] && d < pwo + 60) flags[k] = 1;
       }
@@ -206,7 +213,8 @@ export function buildWater(track, size, center) {
     roughness: th.frozen ? 0.08 : 0.12,
     metalness: 0.1,
     transparent: true,
-    opacity: th.frozen ? 0.96 : 0.86,
+    opacity: th.frozen ? 0.96 : th.waterOpacity ?? 0.86,
+    side: THREE.DoubleSide, // 水中から水面を見上げたときも見えるように
     normalMap,
     normalScale: th.frozen ? new THREE.Vector2(0.12, 0.12) : new THREE.Vector2(0.5, 0.5),
   });
