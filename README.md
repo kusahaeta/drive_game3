@@ -85,7 +85,6 @@ src/hud.js               順位・ラップ・アイテム枠・ミニマップ
 src/audio.js             効果音（WebAudio で合成）
 src/particles.js         火花・土ぼこり
 src/tracks/              コース定義
-archive/nearline/        以前のプロトタイプ（NEARLINE）
 ```
 
 参加者の名前と色は `src/race.js` の `RACERS`、むずかしさは `DIFFICULTIES` で変更できます。
