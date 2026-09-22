@@ -118,6 +118,18 @@ button {
   top: 76px;
   font-size: 24px;
 }
+/* timeHtml() の固定幅数字 */
+.d,
+.s {
+  display: inline-block;
+  text-align: center;
+}
+.d {
+  width: 0.68em;
+}
+.s {
+  width: 0.3em;
+}
 
 #hud-item {
   position: absolute;

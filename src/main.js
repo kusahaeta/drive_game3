@@ -11,7 +11,7 @@ import { input } from "./input.js";
 import { sound } from "./audio.js";
 import { Particles } from "./particles.js";
 import { drawCoursePreview, courseStats } from "./coursePreview.js";
-import { clamp, damp, dampAngle, formatTime, hexCss } from "./utils.js";
+import { clamp, damp, dampAngle, hexCss, timeHtml } from "./utils.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -142,7 +142,7 @@ function showResults() {
     rows
       .map(
         (r) =>
-          `<tr class="${r.isPlayer ? "me" : ""}"><td>${r.rank}</td><td><i style="background:${hexCss(r.color)}"></i>${r.name}</td><td>${r.time == null ? "走行中" : formatTime(r.time)}</td><td>${formatTime(r.best)}</td></tr>`,
+          `<tr class="${r.isPlayer ? "me" : ""}"><td>${r.rank}</td><td><i style="background:${hexCss(r.color)}"></i>${r.name}</td><td>${r.time == null ? "走行中" : timeHtml(r.time)}</td><td>${timeHtml(r.best)}</td></tr>`,
       )
       .join("");
   setScreen("result-screen");
