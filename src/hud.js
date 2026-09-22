@@ -60,6 +60,16 @@ export class HUD {
       else this.path.lineTo(x, y);
     }
     this.path.closePath();
+    // 枝道も同じパスに追加（線が重なって分岐・合流の形になる）
+    for (const b of t.branches ?? []) {
+      for (let i = 0; i < b.count; i += 3) {
+        const [x, y] = this.toMap(b.px[i], b.pz[i]);
+        if (i === 0) this.path.moveTo(x, y);
+        else this.path.lineTo(x, y);
+      }
+      const [x, y] = this.toMap(b.px[b.count - 1], b.pz[b.count - 1]);
+      this.path.lineTo(x, y);
+    }
     this.mapWidth = Math.max(4, t.halfWidth * 2 * scale);
   }
 

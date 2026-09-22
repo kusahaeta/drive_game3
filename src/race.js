@@ -163,6 +163,7 @@ export class Race {
     if (k.respawnTimer > 0) return;
     k.respawnTimer = 1.4;
     k.fallS = k.proj.s;
+    k.fallPath = k.path ?? this.track;
     k.speed = 0;
     k.drifting = false;
     k.boostTimer = 0;
@@ -174,13 +175,16 @@ export class Race {
     k.mesh.visible = false;
     if (k.respawnTimer > 0) return;
     let s = k.fallS;
-    // ギャップの途中で落ちたら向こう岸へ
-    for (const g of this.track.gaps) {
-      if (this.track.inRange(g, s) || this.track.inRange(g, s + 8)) s = g.s0 + g.len + 8;
-    }
+    const path = k.fallPath ?? this.track;
+    if (path === this.track) {
+      // ギャップの途中で落ちたら向こう岸へ
+      for (const g of this.track.gaps) {
+        if (this.track.inRange(g, s) || this.track.inRange(g, s + 8)) s = g.s0 + g.len + 8;
+      }
+    } else s = Math.min(Math.max(s, 3), path.length - 3);
     const lap = k.lap;
     const prevIdx = k.trackIdx;
-    k.place(this.track, s, 0);
+    k.place(this.track, s, 0, path);
     k.trackIdx = prevIdx; // 周回判定を place で飛ばさない
     k.lap = lap;
     k.y += 4;
@@ -200,8 +204,9 @@ export class Race {
   }
 
   checkBoostPads(k) {
-    for (const pad of this.track.boostPads) {
-      const ds = this.track.deltaS(k.proj.s, pad.s);
+    const path = k.path ?? this.track;
+    for (const pad of path.boostPads) {
+      const ds = path.deltaS(k.proj.s, pad.s);
       if (ds >= 0 && ds <= pad.length && Math.abs(k.proj.lateral - pad.lateral) < pad.width / 2 + 0.4 && !k.airborne) {
         if (k.boostTimer < 0.5) this.emit("boostPad", k);
         k.giveBoost(1.0);
@@ -246,13 +251,15 @@ export class Race {
   }
 
   updateProgress(k) {
+    // 枝道の上でもメインコースに換算した位置（mainS）で周回と順位を数える
     const N = this.track.count;
-    const idx = k.proj.idx;
+    const mainS = k.proj.mainS ?? k.proj.s;
+    const idx = Math.floor(mainS / this.track.segLen) % N;
     const prev = k.trackIdx;
     if (prev > N * 0.75 && idx < N * 0.25) k.lap++;
     else if (prev < N * 0.25 && idx > N * 0.75) k.lap--;
     k.trackIdx = idx;
-    k.progress = k.lap * this.track.length + k.proj.s;
+    k.progress = k.lap * this.track.length + mainS;
 
     if (k.lap <= k.maxLap) return;
     k.maxLap = k.lap;
@@ -359,6 +366,7 @@ export class Race {
         this.burst(kart.pos.x, kart.y + 0.2, kart.pos.z, [0xd8c8a8, 0xffffff], 10, 4);
         break;
       case "fall":
+        if (this.track.theme.lava) this.burst(kart.pos.x, this.track.theme.waterLevel + 0.5, kart.pos.z, [0xff7a2a, 0xffd23f, 0x552211], 26, 8);
         if (isPlayer || near) this.sound.play("fall");
         break;
       case "hit":

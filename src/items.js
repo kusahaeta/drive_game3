@@ -80,19 +80,26 @@ export class ItemSystem {
       rim: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 }),
     };
 
-    const hw = this.track.halfWidth;
-    for (const s of this.track.itemRows) {
-      for (let k = 0; k < 4; k++) {
-        const lateral = (k - 1.5) * hw * 0.42;
-        const p = this.track.pointAt(s, lateral, {});
-        const mesh = new THREE.Mesh(this.geo.box, this.mat.box);
-        mesh.castShadow = true;
-        mesh.position.set(p.x, p.surfaceY + 1.4, p.z);
-        mesh.rotation.set(0.5, k, 0.3);
-        this.group.add(mesh);
-        this.boxes.push({ mesh, x: p.x, y: p.surfaceY, z: p.z, active: true, timer: 0, phase: k });
+    // メインコースと各枝道のアイテムボックス列
+    for (const path of this.track.paths) {
+      const hw = path.halfWidth;
+      const n = hw < 7 ? 3 : 4;
+      for (const s of path.itemRows) {
+        for (let k = 0; k < n; k++) {
+          const lateral = (k - (n - 1) / 2) * hw * (n === 3 ? 0.55 : 0.42);
+          this.addBox(path.pointAt(s, lateral, {}), k);
+        }
       }
     }
+  }
+
+  addBox(p, k) {
+    const mesh = new THREE.Mesh(this.geo.box, this.mat.box);
+    mesh.castShadow = true;
+    mesh.position.set(p.x, p.surfaceY + 1.4, p.z);
+    mesh.rotation.set(0.5, k, 0.3);
+    this.group.add(mesh);
+    this.boxes.push({ mesh, x: p.x, y: p.surfaceY, z: p.z, active: true, timer: 0, phase: k });
   }
 
   update(dt) {
@@ -205,9 +212,10 @@ export class ItemSystem {
       mesh,
       target: null,
       dead: false,
+      path: owner.path ?? this.track,
       proj: { idx: owner.proj.idx },
     };
-    this.track.project(x, z, owner.proj.idx, o.proj);
+    this.track.locate(x, z, o, o.proj);
     this.objects.push(o);
     // 置きすぎ防止
     const bananas = this.objects.filter((b) => b.type === "banana");
@@ -224,9 +232,10 @@ export class ItemSystem {
       o.x += Math.sin(o.angle) * o.speed * dt;
       o.z += Math.cos(o.angle) * o.speed * dt;
     }
-    const p = track.project(o.x, o.z, o.proj.idx, o.proj);
-    const limit = track.wallOffset - 0.6;
-    if (Math.abs(p.lateral) > limit && track.wallAt(p.s, Math.sign(p.lateral))) {
+    const p = track.locate(o.x, o.z, o, o.proj);
+    const road = o.path;
+    const limit = road.wallOffset - 0.6;
+    if (Math.abs(p.lateral) > limit && road.wallAt(p.s, Math.sign(p.lateral))) {
       const sgn = Math.sign(p.lateral);
       const push = Math.abs(p.lateral) - limit;
       o.x -= p.nx * push * sgn;
@@ -256,11 +265,11 @@ export class ItemSystem {
       const dz = t.pos.z - o.z;
       if (dx * dx + dz * dz < 30 * 30) aim = Math.atan2(dx, dz);
       else {
-        this.track.pointAt(o.proj.s + 14, clamp(t.proj.lateral, -4, 4), tmp);
+        o.path.pointAt(o.proj.s + 14, clamp(t.proj.lateral, -4, 4), tmp);
         aim = Math.atan2(tmp.x - o.x, tmp.z - o.z);
       }
     } else {
-      this.track.pointAt(o.proj.s + 14, 0, tmp);
+      o.path.pointAt(o.proj.s + 14, 0, tmp);
       aim = Math.atan2(tmp.x - o.x, tmp.z - o.z);
     }
     const turn = 5 * dt;

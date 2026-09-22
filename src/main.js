@@ -228,6 +228,7 @@ function updateCamera(dt, snap = false) {
   sun.position.set(target.pos.x + sd.x * 150, target.y + sd.y * 150, target.pos.z + sd.z * 150);
   sun.target.position.set(target.pos.x, target.y, target.pos.z);
   race.track.sky.position.copy(camera.position);
+  race.track.snowfall?.userData.center.copy(camera.position);
 }
 
 // ---------------------------------------------------------------- メインループ
