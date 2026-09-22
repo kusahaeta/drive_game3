@@ -5,6 +5,7 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { TRACKS } from "./tracks/index.js";
 import { Race, DIFFICULTIES } from "./race.js";
+import { loadKartModel } from "./kart.js";
 import { HUD } from "./hud.js";
 import { input } from "./input.js";
 import { sound } from "./audio.js";
@@ -261,6 +262,7 @@ function frame() {
 // デバッグ用：コンソールから window.kartGP.race で状態を確認できる
 window.kartGP = { get race() { return race; }, startRace, showTitle, camera, freeCam: false };
 
+await loadKartModel();
 buildTitle();
 showTitle();
 $("loading").remove();

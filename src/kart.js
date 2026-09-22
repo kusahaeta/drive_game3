@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { clamp, damp, dampAngle, wrapAngle } from "./utils.js";
 
 export const KART_RADIUS = 1.15;
@@ -12,6 +13,87 @@ export const DRIFT_LEVELS = [
   { charge: 2.0, boost: 1.05, color: 0xff9f1c, label: "スーパーブースト!" },
   { charge: 3.3, boost: 1.5, color: 0xd07bff, label: "ハイパーブースト!" },
 ];
+
+/** プレイヤーのカートに使う 3D モデル（assets/models/cart3.glb）。読み込み前・失敗時は手作りモデルになる */
+const KART_GLB = "./assets/models/cart3.glb";
+const GLB_LENGTH = 3.3; // 前後の長さをこのくらいに合わせる（当たり判定 KART_RADIUS に見合う大きさ）
+const GLB_YAW = 0; // モデルの前方を +Z（進行方向）へ向ける回転
+let glbTemplate = null;
+
+export async function loadKartModel() {
+  try {
+    const gltf = await new GLTFLoader().loadAsync(KART_GLB);
+    const model = gltf.scene;
+    model.rotation.y = GLB_YAW;
+    // ファイルに書かれた範囲（accessor の min/max）が実際の形とずれていることがあるので頂点から測り直す
+    model.traverse((o) => o.isMesh && o.geometry.computeBoundingBox());
+    // 大きさと位置をそろえる：前後の長さを GLB_LENGTH に、底面を y=0、中心を原点に
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    model.scale.setScalar(GLB_LENGTH / size.z);
+    box.setFromObject(model);
+    const center = box.getCenter(new THREE.Vector3());
+    model.position.set(-center.x, -box.min.y, -center.z);
+    const meshes = [];
+    model.traverse((o) => {
+      if (!o.isMesh) return;
+      o.castShadow = o.receiveShadow = true;
+      meshes.push(o);
+    });
+    glbTemplate = new THREE.Group().add(model);
+    glbTemplate.updateMatrixWorld(true);
+
+    // パーツ分けされたモデルなら、いちばん大きいパーツが車体で残りはタイヤ。
+    // タイヤごとに中心へ軸（pivot）を置き、回転と前輪の切れ角をつけられるようにする
+    if (meshes.length > 1) {
+      const boxes = new Map(meshes.map((m) => [m, new THREE.Box3().setFromObject(m)]));
+      const volume = (b) => b.getSize(new THREE.Vector3()).toArray().reduce((a, c) => a * c, 1);
+      const chassis = meshes.reduce((a, b) => (volume(boxes.get(b)) > volume(boxes.get(a)) ? b : a));
+      for (const mesh of meshes) {
+        if (mesh === chassis) continue;
+        const c = boxes.get(mesh).getCenter(new THREE.Vector3());
+        const pivot = new THREE.Group();
+        pivot.name = c.z > 0 ? "wheelPivotFront" : "wheelPivotRear";
+        pivot.position.copy(c);
+        const wheel = new THREE.Group();
+        wheel.name = "wheel";
+        pivot.add(wheel);
+        glbTemplate.add(pivot);
+        glbTemplate.updateMatrixWorld(true);
+        wheel.attach(mesh);
+      }
+    }
+  } catch (err) {
+    console.warn("カートモデルを読み込めませんでした。手作りモデルを使います", err);
+  }
+}
+
+/** 読み込んだモデルを使った見た目。タイヤが別パーツなら回転・切れ角も動く */
+function buildGlbModel() {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  const model = glbTemplate.clone();
+  body.add(model);
+  const wheels = [];
+  const frontPivots = [];
+  model.traverse((o) => {
+    if (o.name === "wheel") wheels.push(o);
+    else if (o.name === "wheelPivotFront") frontPivots.push(o);
+  });
+
+  const flame = new THREE.Group();
+  const flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffa62b).multiplyScalar(5), transparent: true, opacity: 0.9 });
+  for (const x of [0.3, -0.3]) {
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.2, 1.1, 8).rotateX(-Math.PI / 2), flameMat);
+    cone.position.set(x, 0.6, -GLB_LENGTH / 2 - 0.45);
+    flame.add(cone);
+  }
+  flame.visible = false;
+  body.add(flame);
+
+  return { root, body, wheels, frontPivots, flame };
+}
 
 function buildModel(color, accent) {
   const root = new THREE.Group();
@@ -98,7 +180,7 @@ function buildModel(color, accent) {
 export class Kart {
   constructor({ index, name, color, accent, isPlayer = false }) {
     Object.assign(this, { index, name, color, isPlayer });
-    this.model = buildModel(color, accent);
+    this.model = index === 0 && glbTemplate ? buildGlbModel() : buildModel(color, accent);
     this.mesh = this.model.root;
 
     this.control = { throttle: 0, brake: 0, steer: 0, drift: false, item: false, back: false };
