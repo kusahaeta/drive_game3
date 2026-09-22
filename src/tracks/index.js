@@ -34,7 +34,7 @@
  *     { type: "crusher", at, lateral: [-5, 0, 5], period: 3.2, stagger: 0.8 }  震えて予告してから落ちてくる石ブロック
  *     { type: "ufo",     at, count: 1, amplitude, speed: 1 }                   道の上を左右に往復する UFO（光線に当たるとスピン）
  *     { type: "meteor",  from, to, interval: 1.4 }                             赤い印で予告して降ってくる隕石
- *     { type: "snowball", from, to, count: 3, speed: 15, radius: 2.2, fire }   to から from へ転がり落ちてくる大雪玉（fire: true で大火の玉）
+ *     { type: "snowball", from, to, count: 3, speed: 15, radius: 2.2, fire, boulder }  to から from へ転がり落ちてくる大雪玉（fire: true で大火の玉、boulder: true で大岩）
  *     { type: "firebar", at, lateral: 0, length: 7, speed: 1.6 }               道の上で水平に回る火の玉の棒（speed を負にすると逆回転）
  *   theme        色や地形の上書き（src/track.js の DEFAULT_THEME を参照。waterLevel, hills, mountains など）
  *   scenery      { trees: 木の本数, seed: 地形と木の乱数シード,

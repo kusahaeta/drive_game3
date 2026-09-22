@@ -7,7 +7,7 @@ import { lerp } from "./utils.js";
  *   { type: "crusher", at, lateral: [-5, 5], period: 3.2, stagger: 0.8, size: 5 }  落ちてくる石ブロック
  *   { type: "ufo", at, count: 1, amplitude, speed: 1 }                            左右に往復する UFO
  *   { type: "meteor", from, to, interval: 1.4 }                                    予告して降ってくる隕石
- *   { type: "snowball", from, to, count: 3, speed: 15, radius: 2.2, fire: false }  to から from へ（逆走方向に）転がる大雪玉（fire: true で大火の玉）
+ *   { type: "snowball", from, to, count: 3, speed: 15, radius: 2.2, fire: false }  to から from へ（逆走方向に）転がる大雪玉（fire: true で大火の玉、boulder: true で大岩）
  *   { type: "firebar", at, lateral: 0, length: 7, speed: 1.6 }                     道の上で水平に回る火の玉の棒
  *   どれも branch: 1 などを付けると、その番号の枝道の上に置ける（位置はその枝道の長さに対する割合）
  * threats は NPC がよけるための危険地点のリスト。
@@ -41,7 +41,7 @@ export class HazardSystem {
         const zone = { path, s0: h.from * L, len: span() };
         const count = h.count ?? 3;
         for (let k = 0; k < count; k++) {
-          this.snowballs.push(this.makeSnowball(zone, h.speed ?? 15, h.radius ?? 2.2, (k / count) * zone.len, !!h.fire));
+          this.snowballs.push(this.makeSnowball(zone, h.speed ?? 15, h.radius ?? 2.2, (k / count) * zone.len, h.fire ? "fire" : h.boulder ? "boulder" : "snow"));
         }
       } else if (h.type === "meteor") {
         this.zones.push({ path, s0: h.from * L, len: span(), interval: h.interval ?? 1.4, timer: 1 });
@@ -162,14 +162,26 @@ export class HazardSystem {
     return { path, base: s, amp, speed, phase, root, lights, beam, s, lateral: 0, y: 0 };
   }
 
-  makeSnowball(zone, speed, radius, offset, fire) {
-    const mat = fire
-      ? new THREE.MeshStandardMaterial({ color: 0xff5a1a, emissive: new THREE.Color(0xff7a20), emissiveIntensity: 2.2, roughness: 0.6, flatShading: true })
-      : new THREE.MeshStandardMaterial({ color: 0xf4f8ff, roughness: 0.85, flatShading: true });
-    const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(radius, 2), mat);
+  makeSnowball(zone, speed, radius, offset, kind) {
+    const mat = {
+      fire: () => new THREE.MeshStandardMaterial({ color: 0xff5a1a, emissive: new THREE.Color(0xff7a20), emissiveIntensity: 2.2, roughness: 0.6, flatShading: true }),
+      boulder: () => new THREE.MeshStandardMaterial({ color: 0x8a8068, roughness: 1, flatShading: true }),
+      snow: () => new THREE.MeshStandardMaterial({ color: 0xf4f8ff, roughness: 0.85, flatShading: true }),
+    }[kind]();
+    // 大岩はゴツゴツさせる
+    const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(radius, kind === "boulder" ? 1 : 2), mat);
+    if (kind === "boulder") {
+      const pos = mesh.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const k = 0.85 + ((Math.sin(pos.getX(i) * 12.9 + pos.getY(i) * 78.2 + pos.getZ(i) * 37.7) * 43758.5) % 1 + 1) % 1 * 0.3;
+        pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * k, pos.getZ(i) * k);
+      }
+      mesh.geometry.computeVertexNormals();
+    }
     mesh.castShadow = true;
     this.group.add(mesh);
-    const ball = { zone, speed, radius, mesh, fire, d: offset, lateral: 0, s: 0, pos: new THREE.Vector3() };
+    const dust = { fire: [0xff7a2a, 0xffd23f], boulder: [0x8a6a45, 0x6b5a3a], snow: [0xffffff, 0xdfeaff] }[kind];
+    const ball = { zone, speed, radius, mesh, dust, d: offset, lateral: 0, s: 0, pos: new THREE.Vector3() };
     this.rerollSnowball(ball);
     return ball;
   }
@@ -289,7 +301,7 @@ export class HazardSystem {
       // 転がり始めと終わりは小さく
       const grow = Math.min(1, b.d / 12, (b.zone.len - b.d) / 12);
       b.mesh.scale.setScalar(Math.max(0.05, grow));
-      if (grow > 0.8 && race.rng() < dt * 8) race.burst(p.x, p.surfaceY + 0.3, p.z, b.fire ? [0xff7a2a, 0xffd23f] : [0xffffff, 0xdfeaff], 2, 3);
+      if (grow > 0.8 && race.rng() < dt * 8) race.burst(p.x, p.surfaceY + 0.3, p.z, b.dust, 2, 3);
       // 向かってくるので NPC は遠くから（look）よけ始める
       this.threats.push({ path: b.zone.path, s: b.s, lateral: b.lateral, radius: b.radius + 2.2, look: 70 });
     }
