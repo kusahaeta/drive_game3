@@ -315,7 +315,22 @@ export class Race {
         const [x, y, z] = rear(0);
         P.spawn(x, y + 0.6, z, -sin * 4, 0.5, -cos * 4, Math.random() < 0.5 ? 0xffd23f : 0xff6b1a, 0.25);
       }
-      if (k.offroad && Math.abs(k.speed) > 8 && Math.random() < 0.5) {
+      // 水の中：浅い所では水しぶき、潜ったら泡
+      const wl = this.track.theme.waterLevel;
+      if (k.inWater && k.y < wl - 1.4) {
+        if (Math.random() < 0.25) {
+          const [x, y, z] = rear(Math.random() < 0.5 ? 1 : -1);
+          P.spawn(x, y + 0.3, z, (Math.random() - 0.5) * 1.5, 6 + Math.random() * 3, (Math.random() - 0.5) * 1.5, 0x6fb8d8, 0.45);
+        }
+      } else if (k.inWater && Math.abs(k.speed) > 5) {
+        for (const side of [1, -1]) {
+          if (Math.random() < 0.8) {
+            const [x, , z] = rear(side);
+            const out = side * (2 + Math.random() * 2);
+            P.spawn(x, wl + 0.1, z, cos * out - sin * 2, 2.5 + Math.random() * 3, -sin * out - cos * 2, Math.random() < 0.6 ? 0xffffff : 0x9fd8ff, 0.45);
+          }
+        }
+      } else if (k.offroad && Math.abs(k.speed) > 8 && Math.random() < 0.5) {
         const [x, y, z] = rear(Math.random() < 0.5 ? 1 : -1);
         P.spawn(x, y, z, (Math.random() - 0.5) * 2, 1.5, (Math.random() - 0.5) * 2, 0x9b7a4a, 0.5);
       }
@@ -364,6 +379,10 @@ export class Race {
       case "land":
         if (isPlayer) this.sound.play("land", data);
         this.burst(kart.pos.x, kart.y + 0.2, kart.pos.z, [0xd8c8a8, 0xffffff], 10, 4);
+        break;
+      case "splash":
+        this.burst(kart.pos.x, this.track.theme.waterLevel + 0.2, kart.pos.z, [0xffffff, 0x9fd8ff, 0x5fb8f0], 22, 6);
+        if (isPlayer || near) this.sound.play("splash");
         break;
       case "fall":
         if (this.track.theme.lava) this.burst(kart.pos.x, this.track.theme.waterLevel + 0.5, kart.pos.z, [0xff7a2a, 0xffd23f, 0x552211], 26, 8);
