@@ -9,6 +9,7 @@
 export default {
   id: "magma-castle",
   name: "マグマキャッスル",
+  music: "assets/music/castle.mp3",
   description: "溶岩に囲まれた魔王の城。分かれ道の近道は壁なし、クラッシャーとファイアバーが待ち構える。",
   laps: 3,
   roadWidth: 17,

@@ -7,6 +7,7 @@
 export default {
   id: "snow-peak",
   name: "スノーピーク",
+  music: "assets/music/snow.mp3",
   description: "凍った湖面からスタートし、雪山を登って山頂からスキージャンプ。転がる大雪玉と、つるつる滑る凍った道に注意。",
   laps: 3,
   roadWidth: 17,

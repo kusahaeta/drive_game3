@@ -10,7 +10,7 @@
 npm start
 ```
 
-（中身は `python3 -m http.server 4173` です。Three.js とフォントは初回に CDN から読み込みます）
+（中身は `python3 serve.py 4173` です。編集したファイルがすぐ反映されるようキャッシュを無効にしています。Three.js とフォントは初回に CDN から読み込みます）
 
 ## 操作
 

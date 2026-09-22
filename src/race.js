@@ -40,6 +40,7 @@ export class Race {
     this.group = new THREE.Group();
     scene.add(this.group);
     this.track = new Track(trackDef);
+    this.music = trackDef.music;
     this.group.add(this.track.buildScene());
     this.laps = demo ? Infinity : this.track.laps;
 
@@ -142,6 +143,7 @@ export class Race {
     this.countdownText = "GO!";
     this.goTimer = 1;
     this.sound.play("go");
+    if (!this.demo) this.sound.playMusic(this.music, true); // BGM はスタートと同時に
     for (const k of this.karts) {
       const drv = this.drivers.get(k);
       // プレイヤー：「1」の間にアクセルを押すとロケットスタート、早すぎるとエンスト
@@ -405,7 +407,10 @@ export class Race {
         if (isPlayer) this.sound.play("lap");
         break;
       case "finalLap":
-        if (isPlayer) this.sound.play("final");
+        if (isPlayer) {
+          this.sound.play("final");
+          this.sound.musicTempo(1.15); // 最終ラップは BGM を速く
+        }
         break;
       case "finish":
         if (isPlayer) this.sound.play("finish");

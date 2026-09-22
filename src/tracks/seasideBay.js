@@ -7,6 +7,7 @@
 export default {
   id: "seaside-bay",
   name: "シーサイドベイ",
+  music: "assets/music/coastal.mp3",
   description: "水深10mの海底へ潜って入り江を渡る。岬の崖道と桟橋ジャンプも。",
   laps: 3,
   roadWidth: 18,

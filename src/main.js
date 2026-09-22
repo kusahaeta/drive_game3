@@ -104,11 +104,13 @@ function showTitle() {
   hud.show(false);
   setScreen("title-screen");
   sound.engine(0, false, false);
+  sound.playMusic(TRACKS[trackIndex].music, true);
 }
 
 function startRace() {
   sound.init();
   loadRace(false);
+  sound.stopMusic(); // カウントダウン中は鳴らさない（GO! で race.js が流す）
   hud.setup(race);
   hud.show(true);
   setScreen(null);
@@ -120,8 +122,10 @@ function togglePause() {
     mode = "paused";
     setScreen("pause-screen");
     sound.engine(0, false, false);
+    sound.pauseMusic();
   } else if (mode === "paused") {
     mode = "race";
+    sound.resumeMusic();
     setScreen(null);
   }
 }
@@ -179,6 +183,7 @@ function selectTrack(i) {
   buildTitle();
   loadRace(true);
   updateCoursePreview();
+  sound.playMusic(TRACKS[trackIndex].music);
   const card = $("course-preview");
   card.classList.remove("slide-next", "slide-prev");
   void card.offsetWidth; // アニメーションを再スタート
@@ -213,6 +218,8 @@ $("menu-btn").onclick = showTitle;
 $("resume-btn").onclick = togglePause;
 $("pause-retry-btn").onclick = startRace;
 $("pause-menu-btn").onclick = showTitle;
+// ブラウザは操作があるまで音を出せないので、最初のクリックかキー入力で音を有効にする（タイトル画面の BGM 用）
+for (const ev of ["pointerdown", "keydown"]) addEventListener(ev, () => sound.init(), { once: true });
 $("mute-btn").onclick = () => ($("mute-btn").textContent = sound.toggleMute() ? "🔇" : "🔊");
 
 // ---------------------------------------------------------------- カメラ
@@ -285,6 +292,23 @@ function updateUnderwater() {
   sound.underwater(on && !race.demo);
 }
 
+// ブラウザは操作があるまで音を出せないことが多い。自動再生できなければ
+// 読み込み画面を「クリックしてスタート」にして、最初の操作で BGM を流す
+async function unlockAudio() {
+  sound.init();
+  if (!sound.ctx) return;
+  await Promise.race([sound.ctx.resume(), new Promise((r) => setTimeout(r, 300))]);
+  if (sound.ctx.state === "running") return;
+  const gate = $("loading");
+  gate.textContent = "クリック または キーを押してスタート";
+  gate.classList.add("gate");
+  await new Promise((resolve) => {
+    // pointerdown だと離した時のクリックが下のボタンに届くので click で待つ
+    for (const ev of ["click", "keydown"]) addEventListener(ev, resolve, { once: true });
+  });
+  sound.init();
+}
+
 // ---------------------------------------------------------------- メインループ
 const clock = new THREE.Clock();
 
@@ -323,5 +347,7 @@ window.kartGP = { get race() { return race; }, startRace, showTitle, camera, fre
 await loadKartModel();
 buildTitle();
 showTitle();
+await unlockAudio();
 $("loading").remove();
+input.endFrame(); // スタートのために押したキーでレースが始まらないように
 frame();

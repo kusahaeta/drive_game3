@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "python3 -m http.server 4173",
+    "start": "python3 serve.py 4173",
     "check": "for f in src/*.js src/tracks/*.js; do node --check \"$f\" || exit 1; done"
   }
 }
