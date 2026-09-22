@@ -3,6 +3,7 @@ import { Track } from "./track.js";
 import { Kart, DRIFT_LEVELS } from "./kart.js";
 import { AIDriver } from "./ai.js";
 import { ItemSystem } from "./items.js";
+import { HazardSystem } from "./hazards.js";
 import { clamp, lerp, mulberry32 } from "./utils.js";
 
 /** 出場する 8 台。0 番がプレイヤー、残り 7 台が NPC */
@@ -74,6 +75,8 @@ export class Race {
 
     this.items = new ItemSystem(this);
     this.group.add(this.items.group);
+    this.hazards = new HazardSystem(this);
+    this.group.add(this.hazards.group);
     this.order = [...grid];
     this.updateRanks();
   }
@@ -113,6 +116,7 @@ export class Race {
 
     this.collideKarts();
     this.items.update(dt);
+    this.hazards.update(dt);
     for (const k of this.karts) this.updateProgress(k);
     this.updateRanks();
     this.updateEffects();
@@ -320,6 +324,11 @@ export class Race {
   }
 
   emit(type, kart, data) {
+    // 敵（クラッシャー・隕石）の効果音は位置 data で近さを判定
+    if (!kart) {
+      if (!this.demo && data && Math.hypot(data.x - this.player.pos.x, data.z - this.player.pos.z) < 60) this.sound.play(type);
+      return;
+    }
     const isPlayer = kart === this.player && !this.demo;
     const near = !this.demo && kart.pos.distanceToSquared(this.player.pos) < 45 * 45;
     switch (type) {

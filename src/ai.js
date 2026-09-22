@@ -90,6 +90,13 @@ export class AIDriver {
       const dl = o.proj.lateral - lane;
       if (Math.abs(dl) < 3) shift += (dl > 0 ? -1 : 1) * (3 - Math.abs(dl)) * 1.3;
     }
+    // 敵（クラッシャー・UFO・隕石の落下地点）もよける
+    for (const h of this.race.hazards?.threats ?? []) {
+      const ds = track.deltaS(h.s, k.proj.s);
+      if (ds < -2 || ds > 35) continue;
+      const dl = h.lateral - lane;
+      if (Math.abs(dl) < h.radius) shift += (dl > 0 ? -1 : 1) * (h.radius - Math.abs(dl)) * 1.1;
+    }
     return shift;
   }
 

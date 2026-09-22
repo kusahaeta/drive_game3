@@ -31,6 +31,15 @@ export function buildTrackScene(track) {
   track.sunDir = new THREE.Vector3(...th.sunDir).normalize();
 
   g.add(buildSky(track));
+  if (th.space) {
+    // 宇宙コース：地形・水・木の代わりに星空と惑星
+    buildRoad(track, g, tex);
+    buildRamps(track, g);
+    buildStart(track, g);
+    buildBoostPads(track, g);
+    buildSpace(track, g);
+    return g;
+  }
   const terrain = buildTerrain(track);
   track.terrain = terrain;
   g.add(terrain.mesh);
@@ -46,6 +55,7 @@ export function buildTrackScene(track) {
   buildBoostPads(track, g);
   buildSigns(track, g);
   buildGrandstand(track, g);
+  buildRuins(track, g, tex, terrain);
   buildNature(track, g, terrain);
   buildSkyObjects(track, g);
   return g;
@@ -66,8 +76,10 @@ function makeTextures(th) {
       ctx.fillStyle = th.roadLine;
       ctx.fillRect(14, 0, 12, h);
       ctx.fillRect(w - 26, 0, 12, h);
-      ctx.fillStyle = "rgba(255,255,255,0.55)";
-      ctx.fillRect(w / 2 - 4, 0, 8, h * 0.4);
+      if (th.roadCenter !== false) {
+        ctx.fillStyle = "rgba(255,255,255,0.55)";
+        ctx.fillRect(w / 2 - 4, 0, 8, h * 0.4);
+      }
     }),
     dirt: canvasTexture(128, 128, (ctx, w, h) => {
       ctx.fillStyle = th.offroad;
@@ -110,6 +122,46 @@ function makeTextures(th) {
       }
       speckle(ctx, w, h, 900, ["rgba(0,0,0,0.15)", "rgba(255,255,255,0.1)"], 3);
     }),
+    wood: canvasTexture(128, 128, (ctx, w, h) => {
+      for (let y = 0; y < h; y += 16) {
+        ctx.fillStyle = ["#8a5a32", "#7a4e2a", "#946438"][(y / 16) % 3];
+        ctx.fillRect(0, y, w, 16);
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.fillRect(0, y + 14, w, 2);
+      }
+      speckle(ctx, w, h, 700, ["rgba(0,0,0,0.12)", "rgba(255,220,160,0.1)"], 2);
+    }),
+    rope: canvasTexture(64, 64, (ctx, w, h) => {
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#6b4526";
+      ctx.fillRect(0, 0, 10, h);
+      ctx.fillStyle = "#c9a36a";
+      ctx.fillRect(0, 2, w, 5);
+      ctx.fillRect(0, 30, w, 4);
+      ctx.fillStyle = "rgba(201,163,106,0.9)";
+      for (let x = 14; x < w; x += 12) ctx.fillRect(x, 6, 2, 26);
+    }),
+    stone: canvasTexture(128, 128, (ctx, w, h) => {
+      ctx.fillStyle = "#9a9788";
+      ctx.fillRect(0, 0, w, h);
+      for (let y = 0; y < h; y += 32) {
+        for (let x = (y / 32) % 2 ? -32 : 0; x < w; x += 64) {
+          ctx.fillStyle = `rgba(${Math.random() < 0.5 ? "255,255,255" : "0,0,0"},${0.05 + Math.random() * 0.08})`;
+          ctx.fillRect(x + 2, y + 2, 60, 28);
+        }
+        ctx.fillStyle = "rgba(40,40,30,0.45)";
+        ctx.fillRect(0, y, w, 2);
+      }
+      for (let i = 0; i < 26; i++) {
+        const x = Math.random() * w;
+        const y = Math.random() * h;
+        const r = 6 + Math.random() * 18;
+        ctx.fillStyle = `rgba(70,120,40,${0.3 + Math.random() * 0.35})`;
+        ctx.beginPath();
+        ctx.ellipse(x, y, r, r * 0.6, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }),
     concrete: canvasTexture(64, 64, (ctx, w, h) => {
       ctx.fillStyle = "#cfc9bd";
       ctx.fillRect(0, 0, w, h);
@@ -130,15 +182,16 @@ function buildSky(track) {
       bottom: { value: new THREE.Color(th.skyBottom) },
       sunColor: { value: new THREE.Color(th.sun) },
       sunDir: { value: track.sunDir },
+      sunGlow: { value: th.space ? 0 : 1 },
     },
     vertexShader: `varying vec3 vDir;
       void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-    fragmentShader: `uniform vec3 top; uniform vec3 bottom; uniform vec3 sunColor; uniform vec3 sunDir; varying vec3 vDir;
+    fragmentShader: `uniform vec3 top; uniform vec3 bottom; uniform vec3 sunColor; uniform vec3 sunDir; uniform float sunGlow; varying vec3 vDir;
       void main() {
         vec3 d = normalize(vDir);
         vec3 col = mix(bottom, top, smoothstep(-0.02, 0.55, d.y));
         float s = max(dot(d, sunDir), 0.0);
-        col += sunColor * (pow(s, 900.0) * 6.0 + pow(s, 24.0) * 0.35 + pow(s, 4.0) * 0.08);
+        col += sunColor * (pow(s, 900.0) * 6.0 + pow(s, 24.0) * 0.35 + pow(s, 4.0) * 0.08) * sunGlow;
         gl_FragColor = vec4(col, 1.0);
         #include <colorspace_fragment>
       }`,
@@ -197,6 +250,10 @@ function buildRoad(track, g, tex) {
     }
   }
 
+  if (track.theme.space) {
+    buildRainbowRoad(track, g, surf, noGap);
+    return;
+  }
   g.add(ribbon(track, wo, -wo, surf(0), surf(0), 14, lambert({ map: tex.dirt }), noGap));
   const road = ribbon(track, hw, -hw, surf(0.05), surf(0.05), 22, lambert({ map: tex.road }), noGap);
   g.add(road);
@@ -207,7 +264,8 @@ function buildRoad(track, g, tex) {
 
   // 壁（橋の上は手すり、崖側は無し）
   const wallMat = lambert({ map: tex.wall });
-  const railMat = lambert({ map: tex.rail, transparent: true, alphaTest: 0.5 });
+  const wood = track.theme.bridgeStyle === "wood";
+  const railMat = lambert({ map: wood ? tex.rope : tex.rail, transparent: true, alphaTest: 0.5 });
   for (const side of [1, -1]) {
     const cliff = side > 0 ? track.cliffL : track.cliffR;
     const off = wo * side;
@@ -222,17 +280,80 @@ function buildRoad(track, g, tex) {
   track.roadMesh = road;
 }
 
+/** 光る虹色の道とネオンのレール（宇宙コース） */
+function buildRainbowRoad(track, g, surf, noGap) {
+  const hw = track.halfWidth;
+  const wo = track.wallOffset;
+  const rainbow = canvasTexture(128, 512, (ctx, w, h) => {
+    for (let y = 0; y < h; y++) {
+      ctx.fillStyle = `hsl(${(y / h) * 360}, 95%, 62%)`;
+      ctx.fillRect(0, y, w, 1);
+    }
+    for (let y = 0; y < h; y += 32) {
+      ctx.fillStyle = "rgba(255,255,255,0.35)";
+      ctx.fillRect(0, y, w, 2);
+    }
+    const edge = ctx.createLinearGradient(0, 0, w, 0);
+    edge.addColorStop(0, "rgba(255,255,255,0.95)");
+    edge.addColorStop(0.07, "rgba(255,255,255,0)");
+    edge.addColorStop(0.93, "rgba(255,255,255,0)");
+    edge.addColorStop(1, "rgba(255,255,255,0.95)");
+    ctx.fillStyle = edge;
+    ctx.fillRect(0, 0, w, h);
+  });
+  track.scrolling = [{ tex: rainbow, speed: 0.05 }];
+  const roadMat = new THREE.MeshLambertMaterial({
+    map: rainbow,
+    emissiveMap: rainbow,
+    emissive: 0xffffff,
+    emissiveIntensity: 0.45,
+    transparent: true,
+    opacity: 0.9,
+    side: THREE.DoubleSide,
+  });
+  const road = ribbon(track, wo, -wo, surf(0.05), surf(0.05), 36, roadMat, noGap);
+  g.add(road);
+  track.roadMesh = road;
+  // 裏側（下から見たときの厚み）
+  g.add(ribbon(track, wo, -wo, surf(-0.4), surf(-0.4), 20, new THREE.MeshBasicMaterial({ color: 0x1b0f3a, transparent: true, opacity: 0.8, side: THREE.DoubleSide }), noGap));
+
+  const neon = canvasTexture(16, 64, (ctx, w, h) => {
+    const grd = ctx.createLinearGradient(0, 0, 0, h);
+    grd.addColorStop(0, "rgba(255,255,255,1)");
+    grd.addColorStop(0.2, "rgba(140,220,255,0.9)");
+    grd.addColorStop(1, "rgba(120,60,255,0)");
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, w, h);
+  });
+  neon.wrapS = neon.wrapT = THREE.ClampToEdgeWrapping;
+  const railMat = new THREE.MeshBasicMaterial({ map: neon, color: new THREE.Color(1.6, 1.6, 2.2), transparent: true, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
+  for (const side of [1, -1]) {
+    const cliff = side > 0 ? track.cliffL : track.cliffR;
+    // ribbon の v はコース方向なので、高さ方向のグラデーションは u を使う（左→右 = 上→下）
+    const rail = ribbon(track, wo * side, wo * side, surf(1.4), surf(0), 1e9, railMat, (i) => noGap(i) && !cliff[i]);
+    const uv = rail.geometry.attributes.uv;
+    for (let k = 0; k < uv.count; k++) uv.setXY(k, 0.5, k % 2 === 0 ? 1 : 0);
+    g.add(rail);
+  }
+}
+
 function buildBridges(track, g, tex) {
   const wo = track.wallOffset;
   const hw = track.halfWidth;
-  const deck = lambert({ map: tex.concrete });
+  const wood = track.theme.bridgeStyle === "wood";
+  const deck = lambert({ map: wood ? tex.wood : tex.concrete });
   const bridgeOk = (i) => track.bridgeF[i];
+  if (wood) {
+    // 木の吊り橋：路面の上に板を敷く
+    const planks = lambert({ map: tex.wood });
+    g.add(ribbon(track, wo, -wo, (i, o) => track.py[i] + track.bank[i] * o + 0.12, (i, o) => track.py[i] + track.bank[i] * o + 0.12, 3, planks, bridgeOk));
+  }
   g.add(ribbon(track, wo, -wo, (i, o) => track.py[i] + track.bank[i] * o - 1.6, (i, o) => track.py[i] + track.bank[i] * o - 1.6, 10, deck, bridgeOk));
   for (const side of [1, -1]) {
     const off = wo * side;
     g.add(ribbon(track, off, off, (i) => track.py[i] + track.bank[i] * off, (i) => track.py[i] + track.bank[i] * off - 1.6, 10, deck, bridgeOk));
   }
-  const pillarMat = new THREE.MeshLambertMaterial({ map: tex.concrete });
+  const pillarMat = new THREE.MeshLambertMaterial(wood ? { color: 0x6b4526 } : { map: tex.concrete });
   const p = {};
   for (const b of track.bridges) {
     for (let d = 8; d < b.len - 4; d += 16) {
@@ -630,16 +751,24 @@ function buildGrandstand(track, g) {
   }
 }
 
-/** 木・岩（地形の上、コースと水辺を避けて配置） */
+/**
+ * 木・岩・下草（地形の上、コースと水辺を避けて配置）
+ * scenery.treeTypes で木の種類を選ぶ: "pine"（針葉樹）, "round"（広葉樹）, "palm"（ヤシ）, "jungle"（熱帯の大木）
+ * scenery.bushes でコース脇のしげみの数
+ */
 function buildNature(track, g, terrain) {
   const th = track.theme;
-  const rng = mulberry32(track.def.scenery?.seed ?? 1);
-  const count = track.def.scenery?.trees ?? 400;
+  const sc = track.def.scenery ?? {};
+  const rng = mulberry32(sc.seed ?? 1);
+  const count = sc.trees ?? 400;
+  const types = sc.treeTypes ?? ["pine", "pine", "pine", "round", "round"];
   const { minX, maxX, minZ, maxZ } = track.bounds;
-  const spots = { pine: [], round: [], rock: [] };
-  for (let tries = 0; tries < count * 12 && spots.pine.length + spots.round.length < count; tries++) {
-    const x = lerp(minX - 350, maxX + 350, rng());
-    const z = lerp(minZ - 350, maxZ + 350, rng());
+  const spread = sc.spread ?? 350; // コースの外側どこまで木を置くか
+  const spots = { pine: [], round: [], palm: [], jungle: [], rock: [], bush: [] };
+  let placed = 0;
+  for (let tries = 0; tries < count * 12 && placed < count; tries++) {
+    const x = lerp(minX - spread, maxX + spread, rng());
+    const z = lerp(minZ - spread, maxZ + spread, rng());
     if (terrain.nearTrack(x, z)) continue;
     const h = terrain.heightAt(x, z);
     if (h < th.waterLevel + 1.2 || h > 70) continue;
@@ -648,19 +777,37 @@ function buildNature(track, g, terrain) {
       if (rng() < 0.3) spots.rock.push([x, h, z, 1 + rng() * 2.5]);
       continue;
     }
-    (rng() < 0.6 ? spots.pine : spots.round).push([x, h, z, 0.8 + rng() * 0.9]);
+    spots[types[Math.floor(rng() * types.length)]].push([x, h, z, 0.8 + rng() * 0.9]);
+    placed++;
     if (rng() < 0.08) spots.rock.push([x + 4, h, z + 3, 0.6 + rng()]);
+  }
+
+  // コース脇のしげみ（壁のすぐ外側）
+  const wo = track.wallOffset;
+  const p = {};
+  for (let k = 0; k < (sc.bushes ?? 0); k++) {
+    const i = Math.floor(rng() * track.count);
+    if (track.gapF[i] || track.bridgeF[i] || track.tunnelF[i]) continue;
+    const side = rng() < 0.5 ? 1 : -1;
+    if (side > 0 ? track.cliffL[i] : track.cliffR[i]) continue;
+    track.pointAt(i * track.segLen, side * (wo + 2.5 + rng() * 22), p);
+    const h = terrain.heightAt(p.x, p.z);
+    if (h < th.waterLevel + 0.8 || h < p.y - 4) continue;
+    spots.bush.push([p.x, h, p.z, 0.7 + rng() * 1.1]);
   }
 
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
+  const up = new THREE.Vector3(0, 1, 0);
   const c = new THREE.Color();
   const leaf = th.treeLeaf.map((l) => new THREE.Color(l));
-  const instanced = (geo, mat, list, color, rot = false) => {
+  const leafColor = (i, hue = 0) => c.copy(leaf[i % leaf.length]).offsetHSL(hue, 0.03, (rng() - 0.5) * 0.1);
+  const instanced = (geo, mat, list, color, { rot = true, squash = 1 } = {}) => {
+    if (!list.length) return;
     const mesh = new THREE.InstancedMesh(geo, mat, list.length);
     list.forEach(([x, y, z, s], i) => {
-      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rot ? rng() * 6 : 0);
-      m.compose(new THREE.Vector3(x, y - 0.3, z), q, new THREE.Vector3(s, s * (rot ? 0.7 : 1), s));
+      q.setFromAxisAngle(up, rot ? (i * 2.399) % (Math.PI * 2) : 0);
+      m.compose(new THREE.Vector3(x, y - 0.3, z), q, new THREE.Vector3(s, s * squash, s));
       mesh.setMatrixAt(i, m);
       if (color) mesh.setColorAt(i, color(i));
     });
@@ -670,24 +817,65 @@ function buildNature(track, g, terrain) {
   };
   const trunkMat = new THREE.MeshLambertMaterial({ color: th.treeTrunk });
   const leafMat = new THREE.MeshLambertMaterial({ flatShading: true });
-  const pineLeaf = mergeCones();
-  instanced(new THREE.CylinderGeometry(0.35, 0.5, 3, 6).translate(0, 1.5, 0), trunkMat, spots.pine);
-  instanced(pineLeaf, leafMat, spots.pine, (i) => c.copy(leaf[i % leaf.length]).offsetHSL(0, 0, (rng() - 0.5) * 0.08));
-  instanced(new THREE.CylinderGeometry(0.4, 0.55, 3.4, 6).translate(0, 1.7, 0), trunkMat, spots.round);
-  instanced(new THREE.IcosahedronGeometry(2.6, 1).translate(0, 5, 0), leafMat, spots.round, (i) => c.copy(leaf[(i + 1) % leaf.length]).offsetHSL(0.02, 0.05, (rng() - 0.5) * 0.1));
-  instanced(new THREE.DodecahedronGeometry(1.4, 0), new THREE.MeshLambertMaterial({ color: th.rock, flatShading: true }), spots.rock, null, true);
-}
 
-function mergeCones() {
-  const parts = [
+  instanced(new THREE.CylinderGeometry(0.35, 0.5, 3, 6).translate(0, 1.5, 0), trunkMat, spots.pine);
+  instanced(mergeGeos([
     new THREE.ConeGeometry(2.6, 3.6, 8).translate(0, 3.6, 0),
     new THREE.ConeGeometry(2.1, 3.2, 8).translate(0, 5.4, 0),
     new THREE.ConeGeometry(1.5, 2.8, 8).translate(0, 7.1, 0),
-  ].map((p) => p.toNonIndexed());
-  const total = parts.reduce((n, p) => n + p.attributes.position.count, 0);
+  ]), leafMat, spots.pine, (i) => leafColor(i));
+
+  instanced(new THREE.CylinderGeometry(0.4, 0.55, 3.4, 6).translate(0, 1.7, 0), trunkMat, spots.round);
+  instanced(new THREE.IcosahedronGeometry(2.6, 1).translate(0, 5, 0), leafMat, spots.round, (i) => leafColor(i + 1, 0.02));
+
+  // ヤシ：曲がった幹と垂れ下がる葉
+  const palmCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0.4, 3, 0),
+    new THREE.Vector3(1.3, 6, 0),
+    new THREE.Vector3(2.4, 8.6, 0),
+  ]);
+  instanced(new THREE.TubeGeometry(palmCurve, 10, 0.32, 6), new THREE.MeshLambertMaterial({ color: 0x9a7b55 }), spots.palm);
+  const fronds = [];
+  for (let k = 0; k < 8; k++) {
+    fronds.push(
+      new THREE.ConeGeometry(0.7, 5.5, 4)
+        .translate(0, 2.75, 0)
+        .scale(1, 1, 0.18)
+        .rotateZ(-(Math.PI / 2 - 0.35))
+        .rotateY((k / 8) * Math.PI * 2)
+        .translate(2.4, 8.6, 0),
+    );
+  }
+  fronds.push(new THREE.IcosahedronGeometry(0.6, 0).translate(2.4, 8.4, 0));
+  instanced(mergeGeos(fronds), leafMat, spots.palm, (i) => leafColor(i + 2, 0.03));
+
+  // 熱帯の大木：高い幹と横に広がる樹冠
+  instanced(new THREE.CylinderGeometry(0.45, 0.9, 12, 7).translate(0, 6, 0), trunkMat, spots.jungle);
+  instanced(mergeGeos([
+    new THREE.IcosahedronGeometry(3.6, 1).scale(1.2, 0.55, 1.2).translate(0, 12, 0),
+    new THREE.IcosahedronGeometry(2.8, 1).scale(1.1, 0.6, 1.1).translate(2.8, 10.8, 1.4),
+    new THREE.IcosahedronGeometry(2.6, 1).scale(1.1, 0.6, 1.1).translate(-2.4, 11, -1.8),
+    new THREE.IcosahedronGeometry(2.2, 1).scale(1, 0.6, 1).translate(0.6, 9.6, -2.6),
+  ]), leafMat, spots.jungle, (i) => leafColor(i + 3, -0.01));
+
+  // しげみ・シダ
+  instanced(mergeGeos([
+    new THREE.IcosahedronGeometry(1.3, 1).scale(1, 0.6, 1).translate(0, 0.5, 0),
+    new THREE.IcosahedronGeometry(0.9, 1).scale(1, 0.7, 1).translate(1.1, 0.4, 0.4),
+    new THREE.IcosahedronGeometry(0.8, 1).scale(1, 0.7, 1).translate(-0.9, 0.35, -0.5),
+  ]), leafMat, spots.bush, (i) => leafColor(i, 0.01));
+
+  instanced(new THREE.DodecahedronGeometry(1.4, 0), new THREE.MeshLambertMaterial({ color: th.rock, flatShading: true }), spots.rock, null, { squash: 0.7 });
+}
+
+/** 複数のジオメトリを 1 つにまとめる（位置だけ。法線は作り直す） */
+function mergeGeos(parts) {
+  const flat = parts.map((p) => (p.index ? p.toNonIndexed() : p));
+  const total = flat.reduce((n, p) => n + p.attributes.position.count, 0);
   const pos = new Float32Array(total * 3);
   let o = 0;
-  for (const p of parts) {
+  for (const p of flat) {
     pos.set(p.attributes.position.array, o);
     o += p.attributes.position.array.length;
   }
@@ -695,6 +883,189 @@ function mergeCones() {
   geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   geo.computeVertexNormals();
   return geo;
+}
+
+/** 遺跡：苔むした石柱、コースをまたぐ石のアーチ、脇に段々の神殿 */
+function buildRuins(track, g, tex, terrain) {
+  if (!track.ruins.length) return;
+  const wo = track.wallOffset;
+  const rng = mulberry32(77);
+  const mat = new THREE.MeshLambertMaterial({ map: tex.stone });
+  const p = {};
+  const box = (w, h, d, x, y, z, rotY, rx = 0, rz = 0) => {
+    // 石のテクスチャが大きさに合わせて繰り返されるよう UV を拡大
+    const geo = new THREE.BoxGeometry(w, h, d);
+    const uv = geo.attributes.uv;
+    for (let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) * Math.max(w, d) / 4, uv.getY(k) * h / 4);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, y, z);
+    mesh.rotation.set(rx, rotY, rz, "YXZ");
+    mesh.castShadow = mesh.receiveShadow = true;
+    g.add(mesh);
+    return mesh;
+  };
+  for (const r of track.ruins) {
+    let n = 0;
+    for (let d = 6; d < r.len; d += 16, n++) {
+      const arch = n % 3 === 1;
+      for (const side of [1, -1]) {
+        if (side > 0 ? track.cliffL[Math.floor((r.s0 + d) / track.segLen) % track.count] : track.cliffR[Math.floor((r.s0 + d) / track.segLen) % track.count]) continue;
+        track.pointAt(r.s0 + d, side * (wo + 2.6), p);
+        const base = p.y + p.bank * side * (wo + 2.6) - 0.5;
+        const broken = !arch && rng() < 0.35;
+        const h = arch ? 10 : broken ? 2.5 + rng() * 2 : 5 + rng() * 4;
+        box(2.4, h, 2.4, p.x, base + h / 2, p.z, p.heading);
+        box(3, 0.8, 3, p.x, base + h + 0.4, p.z, p.heading);
+        if (broken) {
+          // 崩れた柱のかけら
+          const q = track.pointAt(r.s0 + d + 3, side * (wo + 5 + rng() * 3), {});
+          box(2.2, 2.2, 3.5 + rng() * 2, q.x, q.y - 0.2, q.z, rng() * 3, 0, 0.3);
+        }
+      }
+      if (arch) {
+        track.pointAt(r.s0 + d, 0, p);
+        box((wo + 2.6) * 2 + 3, 1.8, 2.8, p.x, p.y + 11.6, p.z, p.heading);
+        box((wo + 2.6) * 2 - 4, 1.0, 2.2, p.x, p.y + 13, p.z, p.heading);
+      }
+    }
+    // 脇にそびえる段々の神殿
+    const mid = r.s0 + r.len / 2;
+    const side = track.cliffL[Math.floor(mid / track.segLen) % track.count] ? -1 : 1;
+    track.pointAt(mid, side * (wo + 42), p);
+    const ground = terrain.heightAt(p.x, p.z);
+    for (let k = 0; k < 5; k++) {
+      const w = 26 - k * 4.5;
+      box(w, 4, w, p.x, ground + 1 + k * 4, p.z, p.heading);
+    }
+    box(5, 5, 5, p.x, ground + 22.5, p.z, p.heading);
+  }
+}
+
+/** 宇宙：星空・星雲・惑星・浮かぶ星のかけら・コースをくぐる光の輪 */
+function buildSpace(track, g) {
+  const rng = mulberry32(track.def.scenery?.seed ?? 3);
+  const { cx, cz } = track.bounds;
+
+  // 星（2 種類の大きさ）
+  for (const [n, size] of [[3500, 1.4], [600, 2.8]]) {
+    const pos = new Float32Array(n * 3);
+    const col = new Float32Array(n * 3);
+    const c = new THREE.Color();
+    for (let i = 0; i < n; i++) {
+      const u = rng() * 2 - 1;
+      const a = rng() * Math.PI * 2;
+      const r = Math.sqrt(1 - u * u);
+      pos.set([cx + Math.cos(a) * r * 1500, u * 1500, cz + Math.sin(a) * r * 1500], i * 3);
+      c.setHSL(0.55 + rng() * 0.2, 0.6, 0.75 + rng() * 0.25);
+      col.set([c.r, c.g, c.b], i * 3);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    const stars = new THREE.Points(geo, new THREE.PointsMaterial({ size, sizeAttenuation: false, vertexColors: true, fog: false }));
+    stars.frustumCulled = false;
+    g.add(stars);
+  }
+
+  // 星雲
+  const nebula = (hue) =>
+    canvasTexture(
+      256,
+      256,
+      (ctx, w, h) => {
+        for (let i = 0; i < 18; i++) {
+          const x = 60 + rng() * 136;
+          const y = 60 + rng() * 136;
+          const r = 40 + rng() * 70;
+          const grd = ctx.createRadialGradient(x, y, 0, x, y, r);
+          grd.addColorStop(0, `hsla(${hue + rng() * 40}, 90%, 60%, 0.18)`);
+          grd.addColorStop(1, "hsla(0, 0%, 0%, 0)");
+          ctx.fillStyle = grd;
+          ctx.fillRect(0, 0, w, h);
+        }
+      },
+      false,
+    );
+  for (const hue of [280, 200, 320, 240, 180]) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: nebula(hue), fog: false, depthWrite: false, blending: THREE.AdditiveBlending }));
+    const a = rng() * Math.PI * 2;
+    sp.position.set(cx + Math.cos(a) * 1300, -200 + rng() * 700, cz + Math.sin(a) * 1300);
+    sp.scale.setScalar(900 + rng() * 500);
+    g.add(sp);
+  }
+
+  // 惑星
+  const bands = (colors) =>
+    canvasTexture(
+      256,
+      128,
+      (ctx, w, h) => {
+        for (let y = 0; y < h; y += 4) {
+          ctx.fillStyle = colors[Math.floor((Math.sin(y * 0.11) * 0.5 + 0.5) * colors.length) % colors.length];
+          ctx.fillRect(0, y, w, 4);
+        }
+      },
+      false,
+    );
+  const planets = [
+    { r: 170, d: 950, y: 120, a: 0.6, colors: ["#e9b36a", "#c98a4a", "#f2d49b", "#b86f3a"], ring: true },
+    { r: 90, d: 800, y: 260, a: 2.4, colors: ["#6ab8ff", "#3a7ad8", "#9fe0ff"] },
+    { r: 55, d: 700, y: -120, a: 4.1, colors: ["#ff7ab8", "#c84a8a", "#ffb0d8"] },
+    { r: 320, d: 1300, y: -520, a: 3.3, colors: ["#5a3ad8", "#3a2a98", "#7a5af8"] },
+  ];
+  for (const pl of planets) {
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(pl.r, 48, 24),
+      new THREE.MeshLambertMaterial({ map: bands(pl.colors), emissive: 0x302040, fog: false }),
+    );
+    mesh.position.set(cx + Math.cos(pl.a) * pl.d, pl.y, cz + Math.sin(pl.a) * pl.d);
+    mesh.rotation.z = 0.3;
+    g.add(mesh);
+    if (pl.ring) {
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(pl.r * 1.3, pl.r * 2.1, 64),
+        new THREE.MeshBasicMaterial({ color: 0xe8c890, transparent: true, opacity: 0.55, side: THREE.DoubleSide, fog: false }),
+      );
+      ring.position.copy(mesh.position);
+      ring.rotation.set(-Math.PI / 2 + 0.35, 0, 0.3);
+      g.add(ring);
+    }
+  }
+
+  // コースのまわりに浮かぶ星のかけら
+  const bits = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0), new THREE.MeshBasicMaterial(), 320);
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const c = new THREE.Color();
+  const p = {};
+  for (let i = 0; i < 320; i++) {
+    const side = rng() < 0.5 ? 1 : -1;
+    track.pointAt(rng() * track.length, side * (track.wallOffset + 35 + rng() * 90), p);
+    q.setFromEuler(new THREE.Euler(rng() * 3, rng() * 3, 0));
+    const s = 0.5 + rng() * 1.6;
+    m.compose(new THREE.Vector3(p.x, p.y - 25 + rng() * 60, p.z), q, new THREE.Vector3(s, s * 1.6, s));
+    bits.setMatrixAt(i, m);
+    bits.setColorAt(i, c.setHSL(rng(), 1, 0.65).multiplyScalar(2.2));
+  }
+  g.add(bits);
+
+  // コースをくぐる光の輪
+  const rings = track.def.scenery?.rings ?? 0;
+  for (let k = 0; k < rings; k++) {
+    const s = ((k + 0.5) / rings) * track.length;
+    const i = Math.floor(s / track.segLen) % track.count;
+    if (track.gapF[i]) continue;
+    track.pointAt(s, 0, p);
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(track.wallOffset + 2.5, 0.45, 8, 48),
+      new THREE.MeshBasicMaterial({ color: c.setHSL(k / rings, 1, 0.6).clone().multiplyScalar(2.4) }),
+    );
+    const root = new THREE.Group();
+    root.position.set(p.x, p.y, p.z);
+    root.rotation.y = p.heading;
+    root.add(ring);
+    g.add(root);
+  }
 }
 
 /** ふわふわの雲と気球 */
@@ -745,6 +1116,7 @@ function buildSkyObjects(track, g) {
       false,
     );
   track.balloons = [];
+  if (track.def.scenery?.balloons === false) return;
   const colors = [["#ff3d5a", "#ffd23f"], ["#3a86ff", "#ffffff"], ["#2ec27e", "#ffd23f"], ["#8e5cf7", "#ff70a6"]];
   for (let i = 0; i < 4; i++) {
     const b = new THREE.Group();

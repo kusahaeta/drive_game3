@@ -83,6 +83,12 @@ function loadRace(demo) {
   scene.fog = new THREE.Fog(th.fog, th.fogNear, th.fogFar);
   scene.background = new THREE.Color(th.skyBottom);
   sun.color.set(th.sun);
+  // 明るさ（宇宙コースなどで変える）
+  const light = { hemiSky: "#e4f2ff", hemiGround: "#6a7f4a", hemi: 1.5, sun: 2.6, ...th.light };
+  hemi.color.set(light.hemiSky);
+  hemi.groundColor.set(light.hemiGround);
+  hemi.intensity = light.hemi;
+  sun.intensity = light.sun;
   updateCamera(0, true);
 }
 
