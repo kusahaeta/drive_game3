@@ -1,4 +1,4 @@
-/** WebAudio で合成する効果音（音声ファイル不要） */
+/** WebAudio で合成する効果音と、コースごとの BGM（mp3 をループ再生） */
 class Sound {
   constructor() {
     this.ctx = null;
@@ -8,6 +8,7 @@ class Sound {
   init() {
     if (this.ctx) {
       this.ctx.resume();
+      if (this.musicSrc && !this.musicPaused) this.bgm.play().catch(() => {});
       return;
     }
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -20,6 +21,14 @@ class Sound {
     this.muffle.type = "lowpass";
     this.muffle.frequency.value = 20000;
     this.master.connect(this.muffle).connect(ctx.destination);
+
+    // BGM も master を通すのでミュートや水中のこもりが効く
+    this.bgm = new Audio();
+    this.bgm.loop = true;
+    this.musicGain = ctx.createGain();
+    this.musicGain.gain.value = 0.6;
+    ctx.createMediaElementSource(this.bgm).connect(this.musicGain).connect(this.master);
+    if (this.musicSrc) this.playMusic(this.musicSrc, true);
 
     this.engFilter = ctx.createBiquadFilter();
     this.engFilter.type = "lowpass";
@@ -134,11 +143,62 @@ class Sound {
         [784, 988].forEach((f, i) => this.tone(f, 0.18, { type: "triangle", vol: 0.14, delay: i * 0.12 }));
         return;
       case "final":
-        [784, 988, 1175, 1568].forEach((f, i) => this.tone(f, 0.2, { type: "triangle", vol: 0.14, delay: i * 0.1 }));
-        return;
+        return this.finalLapAlarm();
       case "finish":
         [523, 659, 784, 1047, 784, 1047].forEach((f, i) => this.tone(f, 0.25, { type: "square", vol: 0.1, delay: i * 0.13 }));
         return;
+    }
+  }
+
+  /** BGM を流す。同じ曲なら続きから（restart で頭から）。init 前なら覚えておいて init で流す */
+  playMusic(src, restart = false) {
+    const same = src === this.musicSrc;
+    this.musicSrc = src;
+    this.musicPaused = false;
+    if (!this.bgm) return;
+    if (!src) return this.bgm.pause();
+    this.musicTempo(1);
+    if (!same || !this.bgm.src) this.bgm.src = src;
+    else if (restart) this.bgm.currentTime = 0;
+    this.bgm.play().catch(() => {});
+  }
+
+  /** BGM のテンポ（1 = 元の速さ）。音の高さは変えない */
+  musicTempo(rate) {
+    if (!this.bgm) return;
+    this.bgm.preservesPitch = true;
+    this.bgm.playbackRate = rate;
+  }
+
+  /** BGM を止めて忘れる（次に playMusic するまで resumeMusic や init でも鳴らない） */
+  stopMusic() {
+    this.musicSrc = null;
+    this.bgm?.pause();
+  }
+
+  pauseMusic() {
+    this.musicPaused = true;
+    this.bgm?.pause();
+  }
+
+  resumeMusic() {
+    this.musicPaused = false;
+    if (this.musicSrc) this.bgm?.play().catch(() => {});
+  }
+
+  /** 最終ラップの焦らせるジングル：警報のような高い2音 → 駆け上がり → 和音。その間 BGM を下げる */
+  finalLapAlarm() {
+    if (!this.ctx) return;
+    [988, 1319, 988, 1319, 988, 1319].forEach((f, i) => this.tone(f, 0.08, { vol: 0.1, delay: i * 0.09 }));
+    [784, 880, 988, 1047, 1175, 1319, 1480].forEach((f, i) => this.tone(f, 0.06, { vol: 0.09, delay: 0.6 + i * 0.05 }));
+    [1568, 1976].forEach((f) => this.tone(f, 0.55, { vol: 0.08, delay: 0.97 }));
+    this.tone(110, 0.9, { type: "sawtooth", slide: 110, vol: 0.08 }); // 低音のうなりで緊張感
+    if (this.musicGain) {
+      const t = this.ctx.currentTime;
+      const g = this.musicGain.gain;
+      g.cancelScheduledValues(t);
+      g.setTargetAtTime(0.15, t, 0.03);
+      g.setTargetAtTime(0.6, t + 1.3, 0.2);
     }
   }
 

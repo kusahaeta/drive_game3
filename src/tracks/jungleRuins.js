@@ -6,6 +6,7 @@
 export default {
   id: "jungle-ruins",
   name: "ジャングル遺跡",
+  music: "assets/music/jungle.mp3",
   description: "密林を抜けて古代遺跡へ。洞窟、谷越えジャンプ、木の吊り橋が待つ。",
   laps: 3,
   roadWidth: 17,

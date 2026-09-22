@@ -7,6 +7,7 @@
 export default {
   id: "starlight-road",
   name: "スターライトロード",
+  music: "assets/music/rainbow.mp3",
   description: "宇宙に浮かぶ虹の道。柵のない区間と、邪魔してくる敵に注意。上級者向け。",
   laps: 3,
   roadWidth: 16,

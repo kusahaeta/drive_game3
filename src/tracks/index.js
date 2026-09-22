@@ -10,6 +10,7 @@
  *   id*          一意なID
  *   name*        表示名
  *   description  説明文
+ *   music        BGM のファイル（例 "assets/music/circuit.mp3"）。ループ再生される
  *   laps         周回数（既定 3）
  *   roadWidth    路面の幅（既定 18）
  *   shoulderWidth 路肩（ダート）の幅。外側に壁が立つ（既定 6）

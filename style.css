@@ -506,6 +506,17 @@ kbd {
   z-index: 50;
 }
 
+#loading.gate {
+  cursor: pointer;
+  animation: gate-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes gate-pulse {
+  50% {
+    color: rgba(255, 255, 255, 0.55);
+  }
+}
+
 @keyframes bump {
   0% {
     transform: scale(1.35);

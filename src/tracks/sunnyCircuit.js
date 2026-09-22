@@ -6,6 +6,7 @@
 export default {
   id: "sunny-circuit",
   name: "サニーサーキット",
+  music: "assets/music/circuit.mp3",
   description: "丘越えの大ジャンプ、谷の橋、トンネル、海辺の崖道。起伏たっぷりの定番コース。",
   laps: 3,
   roadWidth: 18,
