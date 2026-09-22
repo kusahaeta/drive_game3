@@ -1,6 +1,6 @@
 import { ITEMS } from "./items.js";
 import { DRIFT_LEVELS } from "./kart.js";
-import { formatTime, hexCss } from "./utils.js";
+import { formatTime, hexCss, timeHtml } from "./utils.js";
 
 const $ = (id) => document.getElementById(id);
 const ITEM_KEYS = Object.keys(ITEMS);
@@ -131,7 +131,7 @@ export class HUD {
       el.pos.parentElement.classList.add("bump");
     }
     el.lap.textContent = Math.min(Math.max(p.lap, 1), race.laps);
-    el.time.textContent = formatTime(p.finished ? p.finishTime : race.time);
+    el.time.innerHTML = timeHtml(p.finished ? p.finishTime : race.time);
     el.speed.textContent = Math.round(Math.abs(p.speed) * 3.6);
 
     // アイテム枠

@@ -30,6 +30,11 @@ export function formatTime(sec) {
   return `${String(m).padStart(2, "0")}:${s.toFixed(3).padStart(6, "0")}`;
 }
 
+// 数字を1文字ずつ固定幅の枠に入れる（Russo One はプロポーショナル数字なので表示がガタつく）
+export function timeHtml(sec) {
+  return [...formatTime(sec)].map((c) => `<span class="${/\d|-/.test(c) ? "d" : "s"}">${c}</span>`).join("");
+}
+
 export const hexCss = (hex) => `#${hex.toString(16).padStart(6, "0")}`;
 
 export function smoothstep(a, b, x) {
