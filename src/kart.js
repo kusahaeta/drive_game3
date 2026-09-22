@@ -145,6 +145,7 @@ export class Kart {
     this.invuln = 0;
     this.drifting = false;
     this.driftDir = 0;
+    this.driftSteer = 0;
     this.driftCharge = 0;
     this.driftLevel = 0;
     this.hopPending = false;
@@ -203,6 +204,7 @@ export class Kart {
     this.drifting = true;
     this.hopPending = false;
     this.driftDir = dir;
+    this.driftSteer = 0;
     this.driftCharge = 0;
     this.driftLevel = 0;
   }
@@ -280,9 +282,11 @@ export class Kart {
     const speedAbs = Math.abs(this.speed);
     let yawRate;
     if (this.drifting) {
-      // ドリフト方向へ入れると小さく、逆へ入れると大きく回る
-      const k = 0.62 + 0.48 * clamp(steer * this.driftDir, -1, 1);
-      yawRate = this.driftDir * this.turnRate * 1.08 * k;
+      // ドリフト方向へ入れると小さく回り込み、逆へ入れるとほぼまっすぐの大回りになる。
+      // キーボードでも押す長さで曲がり具合を調整できるよう入力をなめらかにする
+      this.driftSteer = damp(this.driftSteer, clamp(steer * this.driftDir, -1, 1), 8, dt);
+      const k = 0.45 + 0.38 * this.driftSteer;
+      yawRate = this.driftDir * this.turnRate * k;
       this.driftCharge += dt * (0.75 + 0.55 * Math.abs(steer));
       let lvl = 0;
       DRIFT_LEVELS.forEach((L, i) => {
