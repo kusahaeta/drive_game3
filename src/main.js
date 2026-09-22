@@ -81,7 +81,14 @@ function loadRace(demo) {
     particles,
     sound,
     demo,
-    onEvent: (type, kart, data) => hud.handleEvent(type, kart, data),
+    onEvent: (type, kart, data) => {
+      hud.handleEvent(type, kart, data);
+      // 結果画面の表示中も CPU は走り続けるので、ゴールしたら表を更新する
+      if (type === "finish" && mode === "results") {
+        race.updateRanks(); // finish は順位の再計算より先に届く
+        renderResultTable();
+      }
+    },
   });
   const th = race.track.theme;
   scene.fog = new THREE.Fog(th.fog, th.fogNear, th.fogFar);
@@ -137,6 +144,11 @@ function showResults() {
   const me = rows.find((r) => r.isPlayer);
   $("result-title").textContent = me.rank === 1 ? "優勝!" : `${me.rank}位でフィニッシュ!`;
   $("result-sub").textContent = `${TRACKS[trackIndex].name} ・ ${DIFFICULTIES[difficulty].label}`;
+  renderResultTable(rows);
+  setScreen("result-screen");
+}
+
+function renderResultTable(rows = race.results()) {
   $("result-table").innerHTML =
     "<tr><th>順位</th><th>ドライバー</th><th>タイム</th><th>ベストラップ</th></tr>" +
     rows
@@ -145,7 +157,6 @@ function showResults() {
           `<tr class="${r.isPlayer ? "me" : ""}"><td>${r.rank}</td><td><i style="background:${hexCss(r.color)}"></i>${r.name}</td><td>${r.time == null ? "走行中" : timeHtml(r.time)}</td><td>${timeHtml(r.best)}</td></tr>`,
       )
       .join("");
-  setScreen("result-screen");
 }
 
 // ---------------------------------------------------------------- タイトル画面
