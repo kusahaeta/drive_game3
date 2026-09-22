@@ -1,0 +1,10 @@
+{
+  "name": "turbo-kart-gp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 4173",
+    "check": "for f in src/*.js src/tracks/*.js; do node --check \"$f\" || exit 1; done"
+  }
+}
