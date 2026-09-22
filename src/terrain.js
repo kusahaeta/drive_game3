@@ -99,7 +99,7 @@ export function buildTerrain(track) {
         const t = smoothstep(wo + 4 + c * 20, wo + 45 + c * 70, d);
         h = lerp(target, h, t);
         if (d < wo + 8 && c < 0.5) h = Math.min(h, ground0);
-        if (d < wo + 14) flags[k] = 1;
+        if (d < wo + (track.def.scenery?.clearance ?? 14)) flags[k] = 1;
         if (track.tunnelF[i] && d < wo + 60) flags[k] = 1;
       }
       heights[k] = h;

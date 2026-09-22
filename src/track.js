@@ -110,6 +110,7 @@ export class Track {
     this.bridges = of("bridge").map(span);
     this.tunnels = of("tunnel").map(span);
     this.banks = of("bank").map(span);
+    this.ruins = of("ruins").map(span);
 
     for (let i = 0; i < this.count; i++) {
       const s = i * this.segLen;
@@ -250,6 +251,7 @@ export class Track {
 
   update(dt, time) {
     for (const tex of this.animated) tex.offset.y -= dt * 1.4;
+    for (const { tex, speed } of this.scrolling ?? []) tex.offset.y -= dt * speed;
     if (this.water) {
       this.water.material.normalMap.offset.set(time * 0.012, time * 0.02);
     }

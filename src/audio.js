@@ -110,6 +110,12 @@ class Sound {
         return this.noise(0.18, Math.min(0.3, 0.08 + arg * 0.01), 300);
       case "fall":
         return this.tone(700, 0.9, { type: "triangle", slide: -560, vol: 0.14 });
+      case "slam":
+        this.noise(0.4, 0.35, 220);
+        return this.tone(90, 0.35, { type: "sine", slide: -40, vol: 0.25 });
+      case "meteor":
+        this.noise(0.6, 0.3, 700);
+        return this.tone(160, 0.5, { type: "sawtooth", slide: -100, vol: 0.12 });
       case "bump":
         return this.noise(0.1, 0.15, 600);
       case "lap":

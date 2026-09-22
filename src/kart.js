@@ -168,7 +168,8 @@ export class Kart {
     this.speed = 0;
     this.vy = 0;
     this.airborne = this.launched = this.trick = false;
-    track.project(p.x, p.z, null, this.proj);
+    // 立体交差があっても別の段に吸い付かないよう、s から探索の起点を決める
+    track.project(p.x, p.z, Math.round(track.wrapS(s) / track.segLen) % track.count, this.proj);
     this.y = this.proj.groundY;
     this.trackIdx = this.proj.idx;
     this.syncMesh(0, 0);
