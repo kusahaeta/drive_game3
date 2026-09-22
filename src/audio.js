@@ -50,6 +50,19 @@ class Sound {
     this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
     const data = this.noiseBuf.getChannelData(0);
     for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+
+    // ドリフト中のタイヤのきしみ：ノイズを帯域通過させてループ。音量は drift() で出し入れする
+    this.squealSrc = ctx.createBufferSource();
+    this.squealSrc.buffer = this.noiseBuf;
+    this.squealSrc.loop = true;
+    this.squealFilter = ctx.createBiquadFilter();
+    this.squealFilter.type = "bandpass";
+    this.squealFilter.frequency.value = 1800;
+    this.squealFilter.Q.value = 6;
+    this.squealGain = ctx.createGain();
+    this.squealGain.gain.value = 0;
+    this.squealSrc.connect(this.squealFilter).connect(this.squealGain).connect(this.master);
+    this.squealSrc.start();
   }
 
   underwater(on) {
@@ -65,6 +78,15 @@ class Sound {
     this.eng[0].frequency.setTargetAtTime(f, t, 0.05);
     this.eng[1].frequency.setTargetAtTime(f * 0.5, t, 0.05);
     this.engGain.gain.setTargetAtTime(active ? 0.05 + ratio * 0.05 : 0, t, 0.1);
+    if (!active) this.drift(false);
+  }
+
+  /** ドリフト中のきしみ音。溜め段階 level が上がるほど高く鋭い音にする */
+  drift(on, level = 0) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.squealFilter.frequency.setTargetAtTime(1600 + level * 450, t, 0.05);
+    this.squealGain.gain.setTargetAtTime(on ? 0.12 + level * 0.02 : 0, t, on ? 0.04 : 0.08);
   }
 
   tone(freq, dur, { type = "square", vol = 0.15, slide = 0, delay = 0 } = {}) {
@@ -106,16 +128,24 @@ class Sound {
         return this.tone(880, 0.6, { vol: 0.2 });
       case "box":
         return this.tone(700, 0.12, { type: "triangle", slide: 500, vol: 0.12 });
-      case "roulette":
-        return this.tone(1300, 0.03, { vol: 0.04 });
+      case "roulette": {
+        // スロットのように高低2音を交互に「ピッ・ポッ」と刻む（arg = 何回目の刻みか）
+        const f = arg % 2 ? 988 : 1319;
+        this.tone(f, 0.05, { vol: 0.09 });
+        return this.tone(f * 2, 0.03, { type: "triangle", vol: 0.04 });
+      }
       case "get":
         [660, 880, 1100].forEach((f, i) => this.tone(f, 0.1, { type: "triangle", vol: 0.12, delay: i * 0.06 }));
         return;
       case "boost":
         this.tone(220, 0.45, { type: "sawtooth", slide: 700, vol: 0.1 });
         return this.noise(0.4, 0.12, 2000);
-      case "charge":
-        return this.tone(500 + arg * 250, 0.08, { type: "triangle", vol: 0.1 });
+      case "charge": {
+        // ブーストゲージの段階アップ：段階が上がるほど高い音から駆け上がる「キュイン」
+        const base = 660 * Math.pow(1.26, arg - 1);
+        [1, 1.26, 1.5].forEach((m, i) => this.tone(base * m, 0.09, { type: "square", vol: 0.08, delay: i * 0.045 }));
+        return this.tone(base * 2, 0.25, { type: "triangle", slide: base, vol: 0.09, delay: 0.13 });
+      }
       case "throw":
         return this.tone(600, 0.15, { type: "triangle", slide: -300, vol: 0.12 });
       case "hit":

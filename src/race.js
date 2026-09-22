@@ -293,7 +293,12 @@ export class Race {
     p.wrongWayTime = wrong ? p.wrongWayTime + dt : 0;
     const active = !this.demo && this.state !== "done";
     this.sound.engine(clamp(Math.abs(p.speed) / p.maxSpeed, 0, 1.4), p.boostTimer > 0, active);
-    if (p.roulette > 0 && Math.floor(p.roulette * 14) !== Math.floor((p.roulette + dt) * 14)) this.sound.play("roulette");
+    this.sound.drift(active && p.drifting && !p.airborne, p.driftLevel);
+    // アイテム抽選中（獲得するアイテムが決まるまで）は刻み音を鳴らし続ける
+    if (p.roulette > 0) {
+      const tick = Math.floor(p.roulette * 14);
+      if (tick !== Math.floor((p.roulette + dt) * 14)) this.sound.play("roulette", tick);
+    }
   }
 
   updateEffects() {
