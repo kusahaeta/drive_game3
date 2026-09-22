@@ -18,6 +18,9 @@ export const DRIFT_LEVELS = [
 const KART_GLB = "./assets/models/cart3.glb";
 const GLB_LENGTH = 3.3; // 前後の長さをこのくらいに合わせる（当たり判定 KART_RADIUS に見合う大きさ）
 const GLB_YAW = 0; // モデルの前方を +Z（進行方向）へ向ける回転
+
+/** ドリフト以外のブースト（ダッシュ板・アイテムなど）の炎の色 */
+export const BOOST_COLOR = 0xffa62b;
 let glbTemplate = null;
 
 export async function loadKartModel() {
@@ -83,7 +86,7 @@ function buildGlbModel() {
   });
 
   const flame = new THREE.Group();
-  const flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffa62b).multiplyScalar(5), transparent: true, opacity: 0.9 });
+  const flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(BOOST_COLOR).multiplyScalar(5), transparent: true, opacity: 0.9 });
   for (const x of [0.3, -0.3]) {
     const cone = new THREE.Mesh(new THREE.ConeGeometry(0.2, 1.1, 8).rotateX(-Math.PI / 2), flameMat);
     cone.position.set(x, 0.6, -GLB_LENGTH / 2 - 0.45);
@@ -92,7 +95,7 @@ function buildGlbModel() {
   flame.visible = false;
   body.add(flame);
 
-  return { root, body, wheels, frontPivots, flame };
+  return { root, body, wheels, frontPivots, flame, flameMat };
 }
 
 function buildModel(color, accent) {
@@ -165,7 +168,7 @@ function buildModel(color, accent) {
   }
 
   const flame = new THREE.Group();
-  const flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffa62b).multiplyScalar(5), transparent: true, opacity: 0.9 });
+  const flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(BOOST_COLOR).multiplyScalar(5), transparent: true, opacity: 0.9 });
   for (const x of [0.35, -0.35]) {
     const cone = new THREE.Mesh(new THREE.ConeGeometry(0.2, 1.1, 8).rotateX(-Math.PI / 2), flameMat);
     cone.position.set(x, 0.72, -2.0);
@@ -174,7 +177,7 @@ function buildModel(color, accent) {
   flame.visible = false;
   body.add(flame);
 
-  return { root, body, wheels, frontPivots, flame };
+  return { root, body, wheels, frontPivots, flame, flameMat };
 }
 
 export class Kart {
@@ -222,6 +225,7 @@ export class Kart {
     this.pendingItem = null;
 
     this.boostTimer = 0;
+    this.boostColor = BOOST_COLOR;
     this.spinTimer = 0;
     this.stall = 0;
     this.invuln = 0;
@@ -279,8 +283,10 @@ export class Kart {
     return true;
   }
 
-  giveBoost(t) {
+  /** color はドリフトの溜め段階の色（炎と噴射パーティクルに使う） */
+  giveBoost(t, color = BOOST_COLOR) {
     this.boostTimer = Math.max(this.boostTimer, t);
+    this.boostColor = color;
   }
 
   startDrift(dir) {
@@ -295,7 +301,7 @@ export class Kart {
   endDrift(race, cancelled) {
     if (!cancelled && this.driftLevel > 0) {
       const lvl = DRIFT_LEVELS[this.driftLevel - 1];
-      this.giveBoost(lvl.boost);
+      this.giveBoost(lvl.boost, lvl.color);
       race.emit("driftBoost", this, this.driftLevel);
     }
     this.drifting = false;
@@ -501,7 +507,13 @@ export class Kart {
     for (const w of m.wheels) w.rotation.x = this.wheelSpin;
     for (const f of m.frontPivots) f.rotation.y = steer * 0.45;
     m.flame.visible = this.boostTimer > 0;
-    if (m.flame.visible) m.flame.scale.setScalar(0.8 + Math.random() * 0.6);
+    if (m.flame.visible) {
+      m.flame.scale.setScalar(0.8 + Math.random() * 0.6);
+      if (m.flameColor !== this.boostColor) {
+        m.flameColor = this.boostColor;
+        m.flameMat.color.set(this.boostColor).multiplyScalar(5);
+      }
+    }
     // スピン後の無敵時間は点滅
     this.mesh.visible = !(this.invuln > 0 && this.spinTimer <= 0 && Math.floor(this.invuln * 14) % 2 === 0);
   }
