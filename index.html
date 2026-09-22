@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TURBO KART GP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800&family=Russo+One&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./style.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <div id="speed-lines"></div>
+    <div id="hud" class="hidden">
+      <div id="hud-pos" data-rank="1"><span id="pos-num">1</span><small>位</small></div>
+      <div id="hud-lap">LAP <b id="lap-num">1</b><span>/<span id="lap-total">3</span></span></div>
+      <div id="hud-time">00:00.000</div>
+      <div id="hud-item">
+        <div id="item-slot"></div>
+        <span id="item-count"></span>
+        <small>X / E で使う</small>
+      </div>
+      <ol id="standings"></ol>
+      <canvas id="minimap" width="220" height="220"></canvas>
+      <div id="speedo"><b id="speed">0</b><small>km/h</small><div id="drift-meter"><i></i></div></div>
+      <div id="toast"></div>
+      <div id="wrong-way">逆走中!</div>
+      <div id="countdown"></div>
+    </div>
+
+    <button id="mute-btn" title="ミュート (M)">🔊</button>
+
+    <section id="title-screen" class="screen">
+      <div class="panel">
+        <h1>TURBO KART <em>GP</em></h1>
+        <p class="sub">8台で競う 3 ラップのカートレース</p>
+        <h2>コース</h2>
+        <div id="track-list"></div>
+        <h2>むずかしさ</h2>
+        <div id="difficulty"></div>
+        <button id="start-btn" class="primary">レーススタート <span>Enter</span></button>
+        <dl class="controls">
+          <div><dt><kbd>↑</kbd><kbd>W</kbd></dt><dd>アクセル</dd></div>
+          <div><dt><kbd>↓</kbd><kbd>S</kbd></dt><dd>ブレーキ・バック</dd></div>
+          <div><dt><kbd>←</kbd><kbd>→</kbd></dt><dd>ハンドル</dd></div>
+          <div><dt><kbd>Space</kbd><kbd>Shift</kbd></dt><dd>ジャンプ・ドリフト</dd></div>
+          <div><dt><kbd>X</kbd><kbd>E</kbd></dt><dd>アイテム（↓で後ろへ）</dd></div>
+          <div><dt><kbd>Esc</kbd><kbd>R</kbd></dt><dd>ポーズ・リスタート</dd></div>
+        </dl>
+        <p class="tip">ドリフトを長く続けると火花が 青→オレンジ→紫 に変わり、離した瞬間にダッシュ。スタート前の「1」でアクセルを押すとロケットスタート！</p>
+      </div>
+    </section>
+
+    <section id="pause-screen" class="screen hidden">
+      <div class="panel small">
+        <h1>PAUSE</h1>
+        <button id="resume-btn" class="primary">つづける</button>
+        <button id="pause-retry-btn">リスタート</button>
+        <button id="pause-menu-btn">タイトルへ</button>
+      </div>
+    </section>
+
+    <section id="result-screen" class="screen hidden">
+      <div class="panel">
+        <h1 id="result-title">FINISH!</h1>
+        <p id="result-sub" class="sub"></p>
+        <table id="result-table"></table>
+        <div class="buttons">
+          <button id="retry-btn" class="primary">もう一度</button>
+          <button id="menu-btn">タイトルへ</button>
+        </div>
+      </div>
+    </section>
+
+    <div id="loading">LOADING…</div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
