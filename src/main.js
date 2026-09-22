@@ -10,6 +10,7 @@ import { HUD } from "./hud.js";
 import { input } from "./input.js";
 import { sound } from "./audio.js";
 import { Particles } from "./particles.js";
+import { drawCoursePreview, courseStats } from "./coursePreview.js";
 import { clamp, damp, dampAngle, formatTime, hexCss } from "./utils.js";
 
 const $ = (id) => document.getElementById(id);
@@ -55,6 +56,7 @@ addEventListener("resize", () => {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
   composer.setSize(innerWidth, innerHeight);
+  if (mode === "title" && race) drawCoursePreview($("course-map"), race.track);
 });
 
 // ---------------------------------------------------------------- 状態
@@ -96,6 +98,7 @@ function loadRace(demo) {
 function showTitle() {
   mode = "title";
   loadRace(true);
+  updateCoursePreview();
   hud.show(false);
   setScreen("title-screen");
   sound.engine(0, false, false);
@@ -141,19 +144,14 @@ function showResults() {
 
 // ---------------------------------------------------------------- タイトル画面
 function buildTitle() {
-  const list = $("track-list");
-  list.innerHTML = "";
+  const dots = $("course-dots");
+  dots.innerHTML = "";
   TRACKS.forEach((t, i) => {
-    const b = document.createElement("button");
-    b.className = `choice${i === trackIndex ? " selected" : ""}`;
-    b.innerHTML = `<strong>${t.name}</strong><span>${t.description ?? ""}</span><small>${t.laps ?? 3} LAPS</small>`;
-    b.onclick = () => {
-      if (trackIndex === i) return;
-      trackIndex = i;
-      buildTitle();
-      loadRace(true);
-    };
-    list.appendChild(b);
+    const d = document.createElement("button");
+    d.className = i === trackIndex ? "selected" : "";
+    d.title = t.name;
+    d.onclick = () => selectTrack(i);
+    dots.appendChild(d);
   });
   const diff = $("difficulty");
   diff.innerHTML = "";
@@ -169,6 +167,44 @@ function buildTitle() {
   }
 }
 
+// コースを左右で切り替える（端まで行くと反対側へ回る）
+function selectTrack(i) {
+  const n = TRACKS.length;
+  i = ((i % n) + n) % n;
+  if (i === trackIndex) return;
+  const dir = i === (trackIndex + 1) % n ? "next" : i === (trackIndex - 1 + n) % n ? "prev" : i > trackIndex ? "next" : "prev";
+  trackIndex = i;
+  buildTitle();
+  loadRace(true);
+  updateCoursePreview();
+  const card = $("course-preview");
+  card.classList.remove("slide-next", "slide-prev");
+  void card.offsetWidth; // アニメーションを再スタート
+  card.classList.add(`slide-${dir}`);
+}
+
+// 選択中のコース図（loadRace で作った Track から描く）
+function updateCoursePreview() {
+  const t = race.track;
+  const st = courseStats(t);
+  const def = TRACKS[trackIndex];
+  $("course-name").textContent = def.name;
+  $("course-laps").textContent = `${def.laps ?? 3} LAPS`;
+  $("course-count").textContent = `${trackIndex + 1} / ${TRACKS.length}`;
+  $("course-desc").textContent = def.description ?? "";
+  $("course-stats").innerHTML =
+    `<div><dt>全長</dt><dd>${st.length.toLocaleString()} m</dd></div>` +
+    `<div><dt>高低差</dt><dd>${st.climb} m</dd></div>` +
+    (st.branches ? `<div><dt>分かれ道</dt><dd>${st.branches} か所</dd></div>` : "");
+  $("course-legend").innerHTML =
+    `<li><i style="background:#ff3d5a"></i>スタート → 進行方向</li>` +
+    (st.branches ? `<li><i style="background:#6b5fd6"></i>分かれ道</li>` : "") +
+    st.features.map(([, label, color]) => `<li><i style="background:${color}"></i>${label}</li>`).join("");
+  drawCoursePreview($("course-map"), t);
+}
+
+$("course-prev").onclick = () => selectTrack(trackIndex - 1);
+$("course-next").onclick = () => selectTrack(trackIndex + 1);
 $("start-btn").onclick = startRace;
 $("retry-btn").onclick = startRace;
 $("menu-btn").onclick = showTitle;
@@ -243,6 +279,10 @@ function frame() {
   if (input.hit("KeyR") && (mode === "race" || mode === "paused" || mode === "results")) startRace();
   if (input.hit("KeyM")) $("mute-btn").click();
   if (input.hit("Enter") && (mode === "title" || mode === "results")) startRace();
+  if (mode === "title") {
+    if (input.hit("ArrowLeft", "KeyA")) selectTrack(trackIndex - 1);
+    if (input.hit("ArrowRight", "KeyD")) selectTrack(trackIndex + 1);
+  }
 
   if (mode !== "paused") {
     race.update(dt, input);

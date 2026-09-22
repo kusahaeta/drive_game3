@@ -44,8 +44,25 @@
       <div class="panel">
         <h1>TURBO KART <em>GP</em></h1>
         <p class="sub">8台で競う 3 ラップのカートレース</p>
-        <h2>コース</h2>
-        <div id="track-list"></div>
+        <h2>コース <small class="hint">← → で切り替え</small></h2>
+        <div id="course-select">
+          <button id="course-prev" class="nav" title="前のコース (←)">‹</button>
+          <div id="course-preview">
+            <div class="head">
+              <strong id="course-name"></strong>
+              <small id="course-laps"></small>
+              <span id="course-count"></span>
+            </div>
+            <canvas id="course-map"></canvas>
+            <div class="info">
+              <dl id="course-stats"></dl>
+              <ul id="course-legend"></ul>
+            </div>
+            <p id="course-desc"></p>
+          </div>
+          <button id="course-next" class="nav" title="次のコース (→)">›</button>
+        </div>
+        <div id="course-dots"></div>
         <h2>むずかしさ</h2>
         <div id="difficulty"></div>
         <button id="start-btn" class="primary">レーススタート <span>Enter</span></button>
