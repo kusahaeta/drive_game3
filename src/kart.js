@@ -161,17 +161,21 @@ export class Kart {
     this.respawned = false;
   }
 
-  place(track, s, lateral) {
-    const p = track.pointAt(s, lateral, {});
+  /** path（メインコースか枝道）の s 地点に置く */
+  place(track, s, lateral, path = track) {
+    const p = path.pointAt(s, lateral, {});
     this.pos.set(p.x, 0, p.z);
     this.heading = this.moveAngle = p.heading;
     this.speed = 0;
     this.vy = 0;
     this.airborne = this.launched = this.trick = false;
     // 立体交差があっても別の段に吸い付かないよう、s から探索の起点を決める
-    track.project(p.x, p.z, Math.round(track.wrapS(s) / track.segLen) % track.count, this.proj);
+    path.project(p.x, p.z, path.idxAt(s), this.proj);
+    this.path = path;
+    this.proj.path = path;
+    this.proj.mainS = path.mainS(this.proj.s);
     this.y = this.proj.groundY;
-    this.trackIdx = this.proj.idx;
+    this.trackIdx = track.idxAt(this.proj.mainS);
     this.syncMesh(0, 0);
   }
 
@@ -233,7 +237,8 @@ export class Kart {
     if (spinning) steer = 0;
 
     // --- 速度
-    this.offroad = Math.abs(this.proj.lateral) > track.halfWidth + 0.8;
+    const path = this.path ?? track;
+    this.offroad = Math.abs(this.proj.lateral) > path.halfWidth + 0.8;
     let top = this.maxSpeed * this.speedMult;
     if (this.offroad && this.boostTimer <= 0) top *= 0.52;
     if (this.boostTimer > 0) top += 11;
@@ -293,17 +298,22 @@ export class Kart {
     }
     if (flying) yawRate *= 0.5;
     if (!spinning) this.heading += yawRate * dt;
-    const grip = this.drifting ? this.driftGrip : this.offroad ? this.grip * 0.7 : this.grip;
+    // 凍った路面ではグリップがかなり弱くなって滑る
+    this.onIce = path.iceAt(this.proj.s, this.proj.lateral);
+    let grip = this.drifting ? this.driftGrip : this.offroad ? this.grip * 0.7 : this.grip;
+    if (this.onIce) grip *= 0.22;
     this.moveAngle = this.speed >= 0 ? dampAngle(this.moveAngle, this.heading, grip, dt) : this.heading;
 
     // --- 移動
     this.pos.x += Math.sin(this.moveAngle) * this.speed * dt;
     this.pos.z += Math.cos(this.moveAngle) * this.speed * dt;
-    const p = track.project(this.pos.x, this.pos.z, this.proj.idx, this.proj);
+    // 分岐・合流の付近では近い方の道へ乗り移る
+    const p = track.locate(this.pos.x, this.pos.z, this, this.proj);
+    const road = this.path;
 
     // --- 壁
-    const limit = track.wallOffset - KART_RADIUS;
-    if (Math.abs(p.lateral) > limit && track.wallAt(p.s, Math.sign(p.lateral))) {
+    const limit = road.wallOffset - KART_RADIUS;
+    if (Math.abs(p.lateral) > limit && road.wallAt(p.s, Math.sign(p.lateral))) {
       const sgn = Math.sign(p.lateral);
       const push = Math.abs(p.lateral) - limit;
       this.pos.x -= p.nx * push * sgn;
@@ -351,7 +361,7 @@ export class Kart {
       this.vy -= GRAVITY * dt;
       this.y += this.vy * dt;
       if (p.ground && this.y <= p.groundY && prevY >= p.groundY - 0.8) this.land(race, p);
-      else if (this.y < p.y - 9) race.fallOut(this);
+      else if (this.y < p.y - 9 || (track.theme.lava && this.y < track.theme.waterLevel)) race.fallOut(this);
     }
 
     const along = Math.cos(wrapAngle(this.heading - Math.atan2(p.tx, p.tz)));

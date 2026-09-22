@@ -1,6 +1,8 @@
 import { clamp, wrapAngle } from "./utils.js";
 
 const tmp = { x: 0, y: 0, z: 0, heading: 0 };
+const near = { x: 0, y: 0, z: 0, heading: 0 };
+const far = { x: 0, y: 0, z: 0, heading: 0 };
 
 /**
  * NPC の運転。プレイヤーと同じ kart.control を操作するだけなので、
@@ -20,6 +22,15 @@ export class AIDriver {
     this.stuckTime = 0;
     this.reverseTime = 0;
     this.doesTricks = rng() < 0.35 + aggro * 0.6;
+    this.routes = {};
+    this.choose = (b) => this.chooseBranch(b);
+  }
+
+  /** 分岐でどちらへ行くか（周回ごとに決め直す） */
+  chooseBranch(b) {
+    const lap = this.kart.lap;
+    if (this.routes[b.id]?.lap !== lap) this.routes[b.id] = { lap, take: this.rng() < b.aiChance };
+    return this.routes[b.id].take;
   }
 
   update(dt) {
@@ -27,18 +38,22 @@ export class AIDriver {
     const race = this.race;
     const track = race.track;
     const c = k.control;
-    const hw = track.halfWidth;
+    const path = k.path ?? track;
     c.item = false;
     c.back = false;
 
+    // 分岐ではルートを選び、選んだ道に沿って先を見る
     const s = k.proj.s;
-    const turnAhead = track.turnAngle(s + 4, 30);
+    track.routePoint(path, s, 4, 0, this.choose, near);
+    track.routePoint(path, s, 34, 0, this.choose, far);
+    const turnAhead = wrapAngle(far.heading - near.heading);
+    const hw = Math.min(path.halfWidth, far.hw);
     let lane = (this.lane + Math.sin(race.time * this.wander + this.phase) * 0.25) * hw;
     lane += clamp(turnAhead * 1.4, -1, 1) * hw * 0.45; // カーブの内側へ寄る
     lane += this.avoid(lane);
     lane = clamp(lane, -hw + 2, hw - 2);
 
-    track.pointAt(s + 7 + Math.max(0, k.speed) * 0.5, lane, tmp);
+    track.routePoint(path, s, 7 + Math.max(0, k.speed) * 0.5, lane, this.choose, tmp);
     const diff = wrapAngle(Math.atan2(tmp.x - k.pos.x, tmp.z - k.pos.z) - k.heading);
     let steer = clamp(diff * 2.6, -1, 1);
     let throttle = 1;
@@ -83,17 +98,19 @@ export class AIDriver {
     const k = this.kart;
     const track = this.race.track;
     let shift = 0;
+    const path = k.path ?? track;
     for (const o of this.race.items.objects) {
-      if (o.owner === k && o.age < 1) continue;
-      const ds = track.deltaS(o.proj.s, k.proj.s);
+      if ((o.owner === k && o.age < 1) || (o.path ?? track) !== path) continue;
+      const ds = path.deltaS(o.proj.s, k.proj.s);
       if (ds < 2 || ds > 28) continue;
       const dl = o.proj.lateral - lane;
       if (Math.abs(dl) < 3) shift += (dl > 0 ? -1 : 1) * (3 - Math.abs(dl)) * 1.3;
     }
     // 敵（クラッシャー・UFO・隕石の落下地点）もよける
     for (const h of this.race.hazards?.threats ?? []) {
-      const ds = track.deltaS(h.s, k.proj.s);
-      if (ds < -2 || ds > 35) continue;
+      if ((h.path ?? track) !== path) continue;
+      const ds = path.deltaS(h.s, k.proj.s);
+      if (ds < -2 || ds > (h.look ?? 35)) continue;
       const dl = h.lateral - lane;
       if (Math.abs(dl) < h.radius) shift += (dl > 0 ? -1 : 1) * (h.radius - Math.abs(dl)) * 1.1;
     }
@@ -111,8 +128,8 @@ export class AIDriver {
     const near = (min, max) =>
       this.race.karts.some((o) => {
         if (o === k) return false;
-        const d = track.deltaS(o.proj.s, k.proj.s);
-        return d > min && d < max && Math.abs(o.proj.lateral - k.proj.lateral) < 5;
+        const d = track.deltaS(o.proj.mainS ?? o.proj.s, k.proj.mainS ?? k.proj.s);
+        return d > min && d < max && o.path === k.path && Math.abs(o.proj.lateral - k.proj.lateral) < 5;
       });
     switch (k.item) {
       case "boost":

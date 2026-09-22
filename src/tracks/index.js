@@ -25,18 +25,30 @@
  *     { type: "tunnel", from, to }                 山を貫くトンネル
  *     { type: "bank",   from, to, angle: 12 }      カーブの外側が高いバンク（向きは自動）
  *     { type: "ruins",  from, to }                 苔むした石柱・石のアーチ・脇に神殿が並ぶ遺跡
- *   hazards      邪魔してくる敵（src/hazards.js 参照）:
+ *     { type: "ice",    from, to }                 つるつる滑る凍った路面
+ *   branches     分かれ道（src/branch.js 参照）。メインコースの from で分かれ、points を通って to で合流する:
+ *     { from, to, points: [[x, y, z], ...], width, shoulderWidth, noWalls, elevated, itemBoxRows, boostPads, aiChance }
+ *     noWalls: 壁なし（はみ出すと落ちる）, elevated: 下を谷（水・溶岩）まで掘り下げる, aiChance: NPC がこの道を選ぶ確率
+ *     itemBoxRows / boostPads の位置は枝道の長さに対する割合。枝道はメインコースから 30 以上離れた所を通す
+ *   hazards      邪魔してくる敵（src/hazards.js 参照。branch: 番号 で枝道の上にも置ける）:
  *     { type: "crusher", at, lateral: [-5, 0, 5], period: 3.2, stagger: 0.8 }  震えて予告してから落ちてくる石ブロック
  *     { type: "ufo",     at, count: 1, amplitude, speed: 1 }                   道の上を左右に往復する UFO（光線に当たるとスピン）
  *     { type: "meteor",  from, to, interval: 1.4 }                             赤い印で予告して降ってくる隕石
+ *     { type: "snowball", from, to, count: 3, speed: 15, radius: 2.2, fire }   to から from へ転がり落ちてくる大雪玉（fire: true で大火の玉）
+ *     { type: "firebar", at, lateral: 0, length: 7, speed: 1.6 }               道の上で水平に回る火の玉の棒（speed を負にすると逆回転）
  *   theme        色や地形の上書き（src/track.js の DEFAULT_THEME を参照。waterLevel, hills, mountains など）
  *   scenery      { trees: 木の本数, seed: 地形と木の乱数シード,
- *                  treeTypes: ["pine" | "round" | "palm" | "jungle", ...]（多く書いた種類ほど増える）,
+ *                  treeTypes: ["pine" | "snowpine" | "round" | "palm" | "jungle", ...]（多く書いた種類ほど増える）,
+ *                  cabins: 丸太小屋の数, snowmen: 雪だるまの数,
  *                  bushes: コース脇のしげみの数, balloons: false で気球なし,
  *                  clearance: 壁から木までの最小距離（既定 14）, spread: コースの外側どこまで木を置くか（既定 350） }
  *   theme.bridgeStyle: "wood" で橋が木の吊り橋に、theme.roadCenter: false で中央線なし
  *   theme.space: true で宇宙コース（地形・木なし、星空と惑星、虹色の光る道、ネオンの柵）。scenery.rings で光の輪の数
  *   theme.light: { hemiSky, hemiGround, hemi, sun } で明るさを変える
+ *   theme.frozen: true で水面が凍った湖に、theme.snowfall: true で雪が降る
+ *   theme.lava: true で水面が溶岩に（落ちるとコースに戻される）
+ *   theme.castle: true で城壁風の柵（胸壁と松明）、theme.roadBricks: true で石畳、theme.wallHeight で柵の高さ
+ *   theme.cloudColor で雲の色、scenery.castle: { x, z, size, rotation } で城を建てる
  *   宇宙コースでは立体交差もできる（上下の道は 15 以上離す）
  *
  * 高低差は points の 2 番目の値（高さ）で付ける。坂の頂上が急だと自然に車体が浮く。
@@ -44,5 +56,7 @@
 import sunnyCircuit from "./sunnyCircuit.js";
 import jungleRuins from "./jungleRuins.js";
 import starlightRoad from "./starlightRoad.js";
+import snowPeak from "./snowPeak.js";
+import magmaCastle from "./magmaCastle.js";
 
-export const TRACKS = [sunnyCircuit, jungleRuins, starlightRoad];
+export const TRACKS = [sunnyCircuit, jungleRuins, snowPeak, magmaCastle, starlightRoad];

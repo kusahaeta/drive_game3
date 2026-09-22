@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { clamp, lerp, smoothstep, wrapAngle } from "./utils.js";
 import { buildTrackScene } from "./trackScene.js";
+import { Branch } from "./branch.js";
 
 export const DEFAULT_THEME = {
   skyTop: "#2f7fe0",
@@ -92,6 +93,73 @@ export class Track {
     }));
     this.setupFeatures(def.features ?? []);
     this.animated = [];
+    this.closed = true;
+    this.id = 0;
+    // 枝道（分岐して合流する道）。paths[0] がメインコース
+    this.branches = (def.branches ?? []).map((b, i) => new Branch(this, b, i + 1));
+    this.paths = [this, ...this.branches];
+  }
+
+  idxAt(s) {
+    return Math.round(this.wrapS(s) / this.segLen) % this.count;
+  }
+
+  /** メインコース上の s はそのまま（Branch と同じ呼び出し方にそろえるため） */
+  mainS(s) {
+    return this.wrapS(s);
+  }
+
+  /**
+   * ワールド座標を、いま走っている道（state.path）の座標へ変換する。
+   * 分岐・合流の付近では、メインと枝道の近い方へ乗り移る。
+   * out には project の結果に加えて path（道）と mainS（メインコース換算の位置）が入る。
+   */
+  locate(x, z, state, out) {
+    let path = state.path ?? this;
+    path.project(x, z, out.idx, out);
+    const alt = this._alt ?? (this._alt = {});
+    if (path === this) {
+      for (const b of this.branches) {
+        const inSplit = this.inRange({ s0: b.mainFrom - 3, len: this.wrapS(b.splitMainEnd - b.mainFrom) + 6 }, out.s);
+        const inMerge = this.inRange({ s0: b.mergeMainStart - 3, len: this.wrapS(b.mainTo - b.mergeMainStart) + 6 }, out.s);
+        if (!inSplit && !inMerge) continue;
+        b.project(x, z, inSplit ? 0 : b.count - 1, alt);
+        // 行ったり来たりしないよう、はっきり近いときだけ乗り移る
+        if (Math.abs(alt.lateral) < Math.abs(out.lateral) - 0.8 && Math.abs(alt.lateral) < b.wallOffset + 1) {
+          path = b;
+          Object.assign(out, alt);
+          break;
+        }
+      }
+    } else if (path.inJunction(out.s)) {
+      const nearStart = out.s < path.length / 2;
+      this.project(x, z, this.idxAt(nearStart ? path.mainFrom : path.mainTo), alt);
+      if (Math.abs(alt.lateral) < Math.abs(out.lateral) - 0.8 && Math.abs(alt.lateral) < this.wallOffset + 1) {
+        path = this;
+        Object.assign(out, alt);
+      }
+    }
+    state.path = path;
+    out.path = path;
+    out.mainS = path.mainS(out.s);
+    return out;
+  }
+
+  /**
+   * 進行方向に ahead 先の点。メインコースで分岐に差しかかっていて、choose(branch) が true なら枝道側の点を返す。
+   * NPC がルートを選んで走るのに使う。
+   */
+  routePoint(path, s, ahead, lateral, choose, out) {
+    out.hw = path.halfWidth;
+    if (path !== this) return path.pointAt(s + ahead, lateral, out);
+    for (const b of this.branches) {
+      const d = this.deltaS(b.mainFrom, s);
+      if (d >= -b.splitLen && d < ahead && choose(b)) {
+        out.hw = Math.min(this.halfWidth, b.halfWidth);
+        return b.pointAt(ahead - d, lateral, out);
+      }
+    }
+    return this.pointAt(s + ahead, lateral, out);
   }
 
   setupFeatures(features) {
@@ -111,6 +179,7 @@ export class Track {
     this.tunnels = of("tunnel").map(span);
     this.banks = of("bank").map(span);
     this.ruins = of("ruins").map(span);
+    this.ice = of("ice").map(span);
 
     for (let i = 0; i < this.count; i++) {
       const s = i * this.segLen;
@@ -158,9 +227,19 @@ export class Track {
     return this.cliffs.some((c) => this.inRange(c, s) && (c.side === "both" || (c.side === "left") === side > 0));
   }
 
-  /** その位置の外側に壁があるか */
+  /** その位置の外側に壁があるか（side: +1 = 左, -1 = 右）。枝道の分岐・合流の区間は枝道側の壁を開ける */
   wallAt(s, side) {
-    return !this.inAny(this.gaps, s) && !this.cliffSide(s, side);
+    if (this.inAny(this.gaps, s) || this.cliffSide(s, side)) return false;
+    for (const b of this.branches ?? []) {
+      if (side === b.splitSide && this.inRange({ s0: b.mainFrom - 2, len: this.wrapS(b.splitMainEnd - b.mainFrom) + 4 }, s)) return false;
+      if (side === b.mergeSide && this.inRange({ s0: b.mergeMainStart - 2, len: this.wrapS(b.mainTo - b.mergeMainStart) + 4 }, s)) return false;
+    }
+    return true;
+  }
+
+  /** 凍った路面か（路面の上だけ。路肩の雪は普通に遅くなる） */
+  iceAt(s, lateral) {
+    return Math.abs(lateral) <= this.halfWidth + 0.5 && this.inAny(this.ice, s);
   }
 
   rampAt(s, lateral) {
@@ -252,7 +331,13 @@ export class Track {
   update(dt, time) {
     for (const tex of this.animated) tex.offset.y -= dt * 1.4;
     for (const { tex, speed } of this.scrolling ?? []) tex.offset.y -= dt * speed;
-    if (this.water) {
+    if (this.snowfall) this.snowfall.userData.update(dt);
+    for (const f of this.torches ?? []) f.scale.set(1, 0.8 + Math.random() * 0.5, 1);
+    if (this.water && this.theme.lava) {
+      const map = this.water.material.emissiveMap;
+      map.offset.set(time * 0.004, time * 0.007);
+    }
+    if (this.water && !this.theme.frozen && !this.theme.lava) {
       this.water.material.normalMap.offset.set(time * 0.012, time * 0.02);
     }
     for (const b of this.balloons ?? []) b.position.y = b.userData.baseY + Math.sin(time * 0.3 + b.userData.phase) * 3;
