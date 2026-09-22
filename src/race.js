@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { Track } from "./track.js";
-import { Kart, DRIFT_LEVELS } from "./kart.js";
+import { Kart, DRIFT_LEVELS, BOOST_COLOR } from "./kart.js";
 import { AIDriver } from "./ai.js";
 import { ItemSystem } from "./items.js";
 import { HazardSystem } from "./hazards.js";
@@ -320,7 +320,8 @@ export class Race {
       }
       if (k.boostTimer > 0) {
         const [x, y, z] = rear(0);
-        P.spawn(x, y + 0.6, z, -sin * 4, 0.5, -cos * 4, Math.random() < 0.5 ? 0xffd23f : 0xff6b1a, 0.25);
+        const col = k.boostColor === BOOST_COLOR ? (Math.random() < 0.5 ? 0xffd23f : 0xff6b1a) : Math.random() < 0.3 ? 0xffffff : k.boostColor;
+        P.spawn(x, y + 0.6, z, -sin * 4, 0.5, -cos * 4, col, 0.25);
       }
       // 水の中：浅い所では水しぶき、潜ったら泡
       const wl = this.track.theme.waterLevel;
