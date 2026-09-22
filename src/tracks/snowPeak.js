@@ -7,7 +7,7 @@
 export default {
   id: "snow-peak",
   name: "スノーピーク",
-  description: "雪山を登って山頂からスキージャンプ。転がる大雪玉と、つるつる滑る凍った道に注意。",
+  description: "凍った湖面からスタートし、雪山を登って山頂からスキージャンプ。転がる大雪玉と、つるつる滑る凍った道に注意。",
   laps: 3,
   roadWidth: 17,
   shoulderWidth: 6,
@@ -41,10 +41,10 @@ export default {
     { at: 0.576, lateral: 0, width: 6 },
     { at: 0.7, lateral: 3 },
     { at: 0.97, lateral: -2 },
+    // 凍ったスタート直線のダッシュ板（滑りながら狙う）
+    { at: 0.035, lateral: 4 },
   ],
   features: [
-    // スタート直後の雪のキッカー
-    { type: "ramp", at: 0.035, length: 8, height: 1.3 },
     // つづら折りのヘアピンはバンク付き
     { type: "bank", from: 0.205, to: 0.235, angle: 12 },
     { type: "bank", from: 0.248, to: 0.276, angle: 12 },
@@ -57,8 +57,8 @@ export default {
     { type: "gap", from: 0.5916, to: 0.605 },
     // 左側が谷へ落ちる崖沿いの下り（壁なし）
     { type: "cliff", from: 0.63, to: 0.7, side: "left" },
-    // 湖岸のつるつる滑る凍った道
-    { type: "ice", from: 0.86, to: 0.915 },
+    // 湖岸のつるつる滑る凍った道。ゴールをまたいでスタート直後の直線まで続く
+    { type: "ice", from: 0.9, to: 0.06 },
   ],
   hazards: [
     // 登り坂を大雪玉が転がり落ちてくる

@@ -1,6 +1,6 @@
 /**
  * ジャングル遺跡
- * 密林の土の道 → 洞窟 → 台地の遺跡 → 川の谷を大ジャンプ → 木の吊り橋 → 崖沿いを下ってゴール。
+ * 大岩が転がってくる密林の土の道 → 洞窟 → 台地の遺跡 → 川の谷を大ジャンプ → 木の吊り橋 → 崖沿いを下ってゴール。
  * フォーマットの説明は src/tracks/index.js を参照。
  */
 export default {
@@ -42,8 +42,6 @@ export default {
     { at: 0.9, lateral: 2 },
   ],
   features: [
-    // スタート直後の丸太ジャンプ
-    { type: "ramp", at: 0.03, length: 8, height: 1.4 },
     // 岩山の洞窟を抜けて登る
     { type: "tunnel", from: 0.14, to: 0.2 },
     // 台地の上の古代遺跡
@@ -57,6 +55,10 @@ export default {
     { type: "cliff", from: 0.69, to: 0.75, side: "right" },
     // 急なヘアピンはバンク付き
     { type: "bank", from: 0.75, to: 0.79, angle: 14 },
+  ],
+  hazards: [
+    // スタート直後の直線を、遺跡の罠の大岩が転がってくる
+    { type: "snowball", boulder: true, from: 0.015, to: 0.09, count: 2, speed: 11, radius: 2.4 },
   ],
   theme: {
     skyTop: "#4f9fd6",
