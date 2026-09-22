@@ -56,7 +56,7 @@ addEventListener("resize", () => {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
   composer.setSize(innerWidth, innerHeight);
-  if (mode === "title") drawCoursePreview($("course-map"), race.track);
+  if (mode === "title" && race) drawCoursePreview($("course-map"), race.track);
 });
 
 // ---------------------------------------------------------------- 状態
@@ -144,20 +144,14 @@ function showResults() {
 
 // ---------------------------------------------------------------- タイトル画面
 function buildTitle() {
-  const list = $("track-list");
-  list.innerHTML = "";
+  const dots = $("course-dots");
+  dots.innerHTML = "";
   TRACKS.forEach((t, i) => {
-    const b = document.createElement("button");
-    b.className = `choice${i === trackIndex ? " selected" : ""}`;
-    b.innerHTML = `<strong>${t.name}</strong><span>${t.description ?? ""}</span><small>${t.laps ?? 3} LAPS</small>`;
-    b.onclick = () => {
-      if (trackIndex === i) return;
-      trackIndex = i;
-      buildTitle();
-      loadRace(true);
-      updateCoursePreview();
-    };
-    list.appendChild(b);
+    const d = document.createElement("button");
+    d.className = i === trackIndex ? "selected" : "";
+    d.title = t.name;
+    d.onclick = () => selectTrack(i);
+    dots.appendChild(d);
   });
   const diff = $("difficulty");
   diff.innerHTML = "";
@@ -173,11 +167,31 @@ function buildTitle() {
   }
 }
 
+// コースを左右で切り替える（端まで行くと反対側へ回る）
+function selectTrack(i) {
+  const n = TRACKS.length;
+  i = ((i % n) + n) % n;
+  if (i === trackIndex) return;
+  const dir = i === (trackIndex + 1) % n ? "next" : i === (trackIndex - 1 + n) % n ? "prev" : i > trackIndex ? "next" : "prev";
+  trackIndex = i;
+  buildTitle();
+  loadRace(true);
+  updateCoursePreview();
+  const card = $("course-preview");
+  card.classList.remove("slide-next", "slide-prev");
+  void card.offsetWidth; // アニメーションを再スタート
+  card.classList.add(`slide-${dir}`);
+}
+
 // 選択中のコース図（loadRace で作った Track から描く）
 function updateCoursePreview() {
   const t = race.track;
   const st = courseStats(t);
-  $("course-name").textContent = TRACKS[trackIndex].name;
+  const def = TRACKS[trackIndex];
+  $("course-name").textContent = def.name;
+  $("course-laps").textContent = `${def.laps ?? 3} LAPS`;
+  $("course-count").textContent = `${trackIndex + 1} / ${TRACKS.length}`;
+  $("course-desc").textContent = def.description ?? "";
   $("course-stats").innerHTML =
     `<div><dt>全長</dt><dd>${st.length.toLocaleString()} m</dd></div>` +
     `<div><dt>高低差</dt><dd>${st.climb} m</dd></div>` +
@@ -189,6 +203,8 @@ function updateCoursePreview() {
   drawCoursePreview($("course-map"), t);
 }
 
+$("course-prev").onclick = () => selectTrack(trackIndex - 1);
+$("course-next").onclick = () => selectTrack(trackIndex + 1);
 $("start-btn").onclick = startRace;
 $("retry-btn").onclick = startRace;
 $("menu-btn").onclick = showTitle;
@@ -263,6 +279,10 @@ function frame() {
   if (input.hit("KeyR") && (mode === "race" || mode === "paused" || mode === "results")) startRace();
   if (input.hit("KeyM")) $("mute-btn").click();
   if (input.hit("Enter") && (mode === "title" || mode === "results")) startRace();
+  if (mode === "title") {
+    if (input.hit("ArrowLeft", "KeyA")) selectTrack(trackIndex - 1);
+    if (input.hit("ArrowRight", "KeyD")) selectTrack(trackIndex + 1);
+  }
 
   if (mode !== "paused") {
     race.update(dt, input);
