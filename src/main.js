@@ -10,6 +10,7 @@ import { HUD } from "./hud.js";
 import { input } from "./input.js";
 import { sound } from "./audio.js";
 import { Particles } from "./particles.js";
+import { drawCoursePreview, courseStats } from "./coursePreview.js";
 import { clamp, damp, dampAngle, formatTime, hexCss } from "./utils.js";
 
 const $ = (id) => document.getElementById(id);
@@ -55,6 +56,7 @@ addEventListener("resize", () => {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
   composer.setSize(innerWidth, innerHeight);
+  if (mode === "title") drawCoursePreview($("course-map"), race.track);
 });
 
 // ---------------------------------------------------------------- 状態
@@ -96,6 +98,7 @@ function loadRace(demo) {
 function showTitle() {
   mode = "title";
   loadRace(true);
+  updateCoursePreview();
   hud.show(false);
   setScreen("title-screen");
   sound.engine(0, false, false);
@@ -152,6 +155,7 @@ function buildTitle() {
       trackIndex = i;
       buildTitle();
       loadRace(true);
+      updateCoursePreview();
     };
     list.appendChild(b);
   });
@@ -167,6 +171,22 @@ function buildTitle() {
     };
     diff.appendChild(b);
   }
+}
+
+// 選択中のコース図（loadRace で作った Track から描く）
+function updateCoursePreview() {
+  const t = race.track;
+  const st = courseStats(t);
+  $("course-name").textContent = TRACKS[trackIndex].name;
+  $("course-stats").innerHTML =
+    `<div><dt>全長</dt><dd>${st.length.toLocaleString()} m</dd></div>` +
+    `<div><dt>高低差</dt><dd>${st.climb} m</dd></div>` +
+    (st.branches ? `<div><dt>分かれ道</dt><dd>${st.branches} か所</dd></div>` : "");
+  $("course-legend").innerHTML =
+    `<li><i style="background:#ff3d5a"></i>スタート → 進行方向</li>` +
+    (st.branches ? `<li><i style="background:#6b5fd6"></i>分かれ道</li>` : "") +
+    st.features.map(([, label, color]) => `<li><i style="background:${color}"></i>${label}</li>`).join("");
+  drawCoursePreview($("course-map"), t);
 }
 
 $("start-btn").onclick = startRace;
