@@ -8,13 +8,14 @@ import { lerp } from "./utils.js";
  *   { type: "ufo", at, count: 1, amplitude, speed: 1 }                            左右に往復する UFO
  *   { type: "meteor", from, to, interval: 1.4 }                                    予告して降ってくる隕石
  *   { type: "snowball", from, to, count: 3, speed: 15, radius: 2.2, fire: false }  to から from へ（逆走方向に）転がる大雪玉（fire: true で大火の玉）
- *   { type: "firebar", at, lateral: 0, length: 7, speed: 1.6 }                     道の上で水平に回る火の玉の棒
+ *   { type: "firebar", at, lateral: 0, length: 7, speed: 1.6, color }              道の上で水平に回る火の玉の棒（color で火の色。例 0x5ad8ff で青白い人魂）
  *   { type: "pendulum", at, lateral: [-4.25, 4.25], length: 9, speed: 1.6, phase: 0, stagger: π, amplitude: 0.37 }
  *                                                                                  道を横切って振れる丸太の振り子（lateral の位置に 1 本ずつ。stagger は丸太ごとの振りのずれ）
  *   { type: "penguin", from, to, count: 3, speed: 10 }                             凍った道を腹ばいで斜めに滑り、壁で跳ね返るペンギン
  *   { type: "crab", at, count: 2, speed: 4 }                                       道を横歩きで往復する大ガニ
  *   { type: "lightning", from, to, count: 1, interval: 2.4 }                       車の上へ寄ってきて雷を落とす雷雲
  *   { type: "tornado", from, to, count: 1, speed: 6 }                              蛇行しながら道を行き来するつむじ風（当たると巻き上げられる）
+ *   { type: "ghost", from, to, count: 2, speed: 8 }                                消えては現れ、近くの車の行く手へ寄ってくるおばけ（透けている間は当たらない）
  *   どれも branch: 1 などを付けると、その番号の枝道の上に置ける（位置はその枝道の長さに対する割合）
  * threats は NPC がよけるための危険地点のリスト（vs, vl を付けると動きを先読みしてよける。hw はその横の範囲）。
  */
@@ -34,6 +35,7 @@ export class HazardSystem {
     this.penguins = [];
     this.clouds = [];
     this.tornados = [];
+    this.ghosts = [];
     this.threats = [];
     for (const h of this.track.def.hazards ?? []) {
       const path = h.branch ? this.track.paths[h.branch] : this.track;
@@ -57,7 +59,7 @@ export class HazardSystem {
       } else if (h.type === "meteor") {
         this.zones.push({ path, s0: h.from * L, len: span(), interval: h.interval ?? 1.4, timer: 1 });
       } else if (h.type === "firebar") {
-        this.firebars.push(this.makeFirebar(path, h.at * L, h.lateral ?? 0, h.length ?? 7, h.speed ?? 1.6));
+        this.firebars.push(this.makeFirebar(path, h.at * L, h.lateral ?? 0, h.length ?? 7, h.speed ?? 1.6, h.color ?? 0xff8a2a));
       } else if (h.type === "pendulum") {
         const lats = h.lateral == null ? [-hw * 0.5, hw * 0.5] : [].concat(h.lateral);
         this.pendulums.push(this.makePendulum(path, h.at * L, lats, h.length ?? 9, h.speed ?? 1.6, h.phase ?? 0, h.stagger ?? Math.PI, h.amplitude ?? 0.37));
@@ -78,6 +80,10 @@ export class HazardSystem {
         const zone = { path, s0: h.from * L, len: span() };
         const count = h.count ?? 1;
         for (let k = 0; k < count; k++) this.tornados.push(this.makeTornado(zone, h.speed ?? 6, k / count));
+      } else if (h.type === "ghost") {
+        const zone = { path, s0: h.from * L, len: span() };
+        const count = h.count ?? 2;
+        for (let k = 0; k < count; k++) this.ghosts.push(this.makeGhost(zone, h.speed ?? 8, ((k + 0.5) / count) * zone.len, 0.8 + k * 1.1));
       }
     }
     this.meteorGeo = new THREE.IcosahedronGeometry(1.5, 0);
@@ -211,7 +217,7 @@ export class HazardSystem {
   }
 
   /** 道の上で水平に回る、火の玉を並べた棒 */
-  makeFirebar(path, s, lateral, length, speed) {
+  makeFirebar(path, s, lateral, length, speed, color) {
     const p = path.pointAt(s, lateral, {});
     const root = new THREE.Group();
     root.position.set(p.x, p.surfaceY, p.z);
@@ -225,7 +231,7 @@ export class HazardSystem {
     const arm = new THREE.Group();
     arm.position.y = 1.3;
     root.add(arm);
-    const ballMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff8a2a).multiplyScalar(3) });
+    const ballMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(3) });
     const n = Math.max(3, Math.round(length / 1.2));
     const balls = [];
     for (let k = 1; k <= n; k++) {
@@ -463,6 +469,56 @@ export class HazardSystem {
     return { zone, speed, root, layers, tex, d: offset * zone.len, dir: 1, phase: offset * 7, s: 0, lateral: 0, pos: new THREE.Vector3() };
   }
 
+  /** 消えては現れ、近くの車の行く手へ寄ってくるおばけ。顔は +z（lookAt で車の方を向く） */
+  makeGhost(zone, speed, offset, delay) {
+    const mat = new THREE.MeshStandardMaterial({ color: 0xf4f6ff, emissive: 0x9aa8ff, emissiveIntensity: 0.55, roughness: 0.5, transparent: true, depthWrite: false });
+    const root = new THREE.Group();
+    const body = new THREE.Group();
+    root.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(1.6, 24, 14, 0, Math.PI * 2, 0, Math.PI / 2), mat);
+    // すそはひらひら波打つ
+    const skirt = new THREE.CylinderGeometry(1.6, 1.3, 2, 24, 3, true).translate(0, -1, 0);
+    const pos = skirt.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i);
+      if (y < -1.9) pos.setY(i, y + Math.sin(Math.atan2(pos.getZ(i), pos.getX(i)) * 7) * 0.3);
+    }
+    skirt.computeVertexNormals();
+    body.add(head, new THREE.Mesh(skirt, mat));
+    // 腕（寄ってくる間は前へ突き出す）
+    const arms = [];
+    for (const side of [-1, 1]) {
+      const arm = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 8).scale(1, 0.7, 1.4), mat);
+      arm.position.set(side * 1.6, -0.4, 0.2);
+      body.add(arm);
+      arms.push({ arm, side });
+    }
+    // 顔：黒い目と、舌を出した口
+    const faceMat = new THREE.MeshBasicMaterial({ color: 0x1a1030, transparent: true });
+    const tongueMat = new THREE.MeshBasicMaterial({ color: 0xff5a8a, transparent: true });
+    for (const x of [-0.55, 0.55]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8).scale(0.8, 1.3, 0.5), faceMat);
+      eye.position.set(x, 0.55, 1.45);
+      body.add(eye);
+    }
+    const mouth = new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 8).scale(1.3, 0.8, 0.4), faceMat);
+    mouth.position.set(0, -0.35, 1.5);
+    const tongue = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8).scale(1, 1.4, 0.5), tongueMat);
+    tongue.position.set(0.1, -0.7, 1.6);
+    body.add(mouth, tongue);
+    const shadow = new THREE.Mesh(
+      new THREE.CircleGeometry(1.4, 20),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false }),
+    );
+    shadow.rotation.x = -Math.PI / 2;
+    this.group.add(root, shadow);
+    return {
+      zone, speed, root, body, arms, shadow, mats: [mat, faceMat, tongueMat],
+      d: offset, lateral: 0, s: 0, pos: new THREE.Vector3(), target: { d: offset, lateral: 0 },
+      state: "hide", timer: delay, fade: 0, prey: null, phase: offset,
+    };
+  }
+
   rerollSnowball(ball) {
     const hw = ball.zone.path.halfWidth;
     ball.lateral = lerp(-hw + ball.radius, hw - ball.radius, this.race.rng());
@@ -681,7 +737,93 @@ export class HazardSystem {
       this.threats.push({ path: w.zone.path, s: w.s, lateral: w.lateral, radius: 4, look: 50 });
     }
 
+    for (const g of this.ghosts) this.updateGhost(g, dt, t);
+
     this.collide();
+  }
+
+  /**
+   * おばけ：hide（透けてふわふわ漂う。当たらない）→ appear（ゾーン内の車の行く手に現れる）→ chase（その車へ寄ってくる）→ hide
+   */
+  updateGhost(g, dt, t) {
+    const race = this.race;
+    const z = g.zone;
+    const path = z.path;
+    const hw = path.halfWidth - 1.2;
+    const along = (s) => (((s - z.s0) % path.length) + path.length) % path.length;
+    const running = race.state !== "countdown";
+    g.timer -= dt;
+    if (g.state === "hide") {
+      g.fade = Math.max(0, g.fade - dt * 2.5);
+      if (g.timer <= 0 && running) {
+        // ゾーンの中を走っている車の中から 1 台選び、その少し先に現れる
+        const near = race.karts.filter((k) => (k.path ?? this.track) === path && k.respawnTimer <= 0 && along(k.proj.s) < z.len);
+        g.prey = near.length ? near[Math.floor(race.rng() * near.length)] : null;
+        if (g.prey) {
+          g.d = Math.min(z.len, along(g.prey.proj.s) + 35 + race.rng() * 20);
+          g.lateral = lerp(-hw, hw, race.rng());
+        }
+        g.state = "appear";
+        g.timer = 0.7;
+        const q = path.pointAt(z.s0 + g.d, g.lateral, {});
+        race.emit("ghost", null, { x: q.x, y: q.surfaceY, z: q.z });
+      } else if (running) {
+        // 透けている間はゾーンの中をゆっくり漂う
+        if (Math.abs(g.target.d - g.d) < 1 && Math.abs(g.target.lateral - g.lateral) < 1) {
+          g.target.d = race.rng() * z.len;
+          g.target.lateral = lerp(-hw, hw, race.rng());
+        }
+        g.d += Math.sign(g.target.d - g.d) * Math.min(Math.abs(g.target.d - g.d), 4 * dt);
+        g.lateral += Math.sign(g.target.lateral - g.lateral) * Math.min(Math.abs(g.target.lateral - g.lateral), 2 * dt);
+      }
+    } else if (g.state === "appear") {
+      g.fade = Math.min(1, g.fade + dt * 1.8);
+      if (g.timer <= 0) {
+        g.state = "chase";
+        g.timer = 2.6 + race.rng() * 1.2;
+      }
+    } else if (g.state === "chase") {
+      g.fade = 1;
+      const k = g.prey;
+      if (k && (k.path ?? this.track) === path && k.respawnTimer <= 0) {
+        // 狙った車の方へふわふわ寄ってくる（横は遅いので、ハンドルを切ればよけられる）
+        const ds = path.deltaS(k.proj.s, z.s0 + g.d);
+        g.d = Math.max(0, Math.min(z.len, g.d + Math.sign(ds) * Math.min(Math.abs(ds), g.speed * 0.5 * dt)));
+        const dl = Math.max(-hw, Math.min(hw, k.proj.lateral)) - g.lateral;
+        g.lateral += Math.sign(dl) * Math.min(Math.abs(dl), g.speed * 0.35 * dt);
+      }
+      if (g.timer <= 0) this.hideGhost(g);
+    }
+    g.s = z.s0 + g.d;
+    const p = path.pointAt(g.s, g.lateral, {});
+    const bob = Math.sin(t * 2.4 + g.phase) * 0.35;
+    g.pos.set(p.x, p.surfaceY, p.z);
+    g.root.position.set(p.x, p.surfaceY + 2.4 + bob, p.z);
+    // 寄ってくる間は狙った車の方、それ以外は逆走の向き（向かってくる車の方）を見る
+    const face = g.state !== "hide" && g.prey ? g.prey.pos : { x: p.x - Math.sin(p.heading) * 10, z: p.z - Math.cos(p.heading) * 10 };
+    g.root.rotation.y = Math.atan2(face.x - p.x, face.z - p.z);
+    g.body.rotation.z = Math.sin(t * 1.7 + g.phase) * 0.12;
+    const reach = g.state === "chase" ? 1 : 0;
+    for (const a of g.arms) {
+      a.arm.position.z = 0.2 + reach * 0.9;
+      a.arm.position.y = -0.4 + reach * 0.5 + Math.sin(t * 6 + a.side) * 0.12;
+    }
+    const op = 0.12 + g.fade * 0.8;
+    g.mats[0].opacity = op;
+    g.mats[1].opacity = g.mats[2].opacity = 0.15 + g.fade * 0.85;
+    g.root.scale.setScalar(0.85 + g.fade * 0.15 + (g.state === "appear" ? Math.sin(t * 30) * 0.04 : 0));
+    g.shadow.position.set(p.x, p.surfaceY + 0.15, p.z);
+    g.shadow.material.opacity = 0.08 + g.fade * 0.2;
+    g.danger = g.state === "chase" || (g.state === "appear" && g.fade > 0.7);
+    if (g.state !== "hide") this.threats.push({ path, s: g.s, lateral: g.lateral, radius: 3.6, look: 60 });
+  }
+
+  hideGhost(g) {
+    g.state = "hide";
+    g.timer = 1.6 + this.race.rng() * 1.6;
+    g.prey = null;
+    g.target.d = g.d;
+    g.target.lateral = g.lateral;
   }
 
   updateCloud(c, dt, t) {
@@ -856,6 +998,10 @@ export class HazardSystem {
       for (const w of this.tornados) {
         // 巻き込まれると高く放り上げられる
         if (Math.hypot(k.pos.x - w.pos.x, k.pos.z - w.pos.z) < 2.3 + KART_RADIUS && k.y - w.pos.y < 10 && k.y - w.pos.y > -2 && this.hitKart(k)) k.vy = 13;
+      }
+      for (const g of this.ghosts) {
+        // 当てたおばけは笑って消える
+        if (g.danger && Math.hypot(k.pos.x - g.pos.x, k.pos.z - g.pos.z) < 1.6 + KART_RADIUS && Math.abs(k.y - g.pos.y) < 3.5 && this.hitKart(k)) this.hideGhost(g);
       }
     }
   }

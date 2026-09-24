@@ -61,6 +61,7 @@ export function buildTrackScene(track) {
   buildRuins(track, g, tex, terrain);
   buildNature(track, g, terrain);
   buildWinter(track, g, terrain);
+  buildGraveyard(track, g, terrain);
   buildCastle(track, g, terrain);
   buildSkyObjects(track, g);
   return g;
@@ -235,7 +236,7 @@ function buildBattlements(path, g, tex, surf, wallAt, wallH) {
 
   // 松明：木の柄と、光る炎（ブルームで光る）
   const stick = new THREE.MeshLambertMaterial({ color: 0x4a3222 });
-  const flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff9a2a).multiplyScalar(3.5) });
+  const flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(hallLook(main.theme).flame).multiplyScalar(3.5) });
   main.torches ??= [];
   for (const [x, y, z] of torches) {
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1.4, 6), stick);
@@ -270,15 +271,16 @@ function buildCastle(track, g, terrain) {
   root.scale.setScalar(size);
   g.add(root);
 
-  const stoneTex = stoneTexture();
+  const stoneTex = stoneTexture(hallLook(track.theme).outer);
   const stone = (rx, ry) => {
     const t = stoneTex.clone();
     t.needsUpdate = true;
     t.repeat.set(rx, ry);
     return new THREE.MeshLambertMaterial({ map: t });
   };
-  const roofMat = new THREE.MeshLambertMaterial({ color: 0x8a1a1a });
-  const winMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffa23a).multiplyScalar(2.5) });
+  const look = hallLook(track.theme);
+  const roofMat = new THREE.MeshLambertMaterial({ color: look.roof });
+  const winMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(look.window).multiplyScalar(2.5) });
   const add = (mesh, x, y, z) => {
     mesh.position.set(x, y, z);
     mesh.castShadow = mesh.receiveShadow = true;
@@ -312,7 +314,7 @@ function buildCastle(track, g, terrain) {
   add(new THREE.Mesh(new THREE.CylinderGeometry(11, 12, 40, 16), stone(6, 5)), 0, 74, 0);
   add(new THREE.Mesh(new THREE.ConeGeometry(15, 28, 16), roofMat), 0, 108, 0);
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 14), new THREE.MeshLambertMaterial({ color: 0x333333 })), 0, 128, 0);
-  const flag = add(new THREE.Mesh(new THREE.PlaneGeometry(9, 5), new THREE.MeshLambertMaterial({ color: 0xe6a21a, side: THREE.DoubleSide })), 4.5, 132, 0);
+  const flag = add(new THREE.Mesh(new THREE.PlaneGeometry(9, 5), new THREE.MeshLambertMaterial({ color: look.flag, side: THREE.DoubleSide })), 4.5, 132, 0);
   flag.castShadow = false;
   // 正面の門と窓
   for (let k = 0; k < 4; k++) {
@@ -763,6 +765,26 @@ function buildTunnels(track, g, tex) {
 /** 城内の大広間の寸法（壁の高さ・天井のアーチの高さ・外側の屋根の高さ・外壁までの横幅） */
 const HALL = { wall: 12, vault: 6, roof: 22, half: 30 };
 
+/** 城（城壁の松明・大広間・scenery.castle）の色。theme.haunted のときはお化け屋敷の洋館になる */
+function hallLook(th) {
+  if (th.haunted) {
+    return {
+      haunted: true,
+      inner: "#4a4458", outer: "#3c3a48", pillar: "#5a5268", glow: 0x100a1c,
+      roof: 0x2a2238, window: 0x9aff6a, flame: 0x5ad8ff, flag: 0x5a2a7a,
+      banner: "#4a1a5a", bannerGlow: 0x14061c, carpet: "#3a1646", carpetEdge: "#8a7a3a",
+      trench: ["#3aff6a", "rgba(200,255,120,0.5)", "rgba(10,80,30,0.5)"],
+    };
+  }
+  return {
+    haunted: false,
+    inner: "#6a5a52", outer: "#5c5652", pillar: "#7a6c64", glow: 0x24100a,
+    roof: 0x8a1a1a, window: 0xffa23a, flame: 0xff9a2a, flag: 0xe6a21a,
+    banner: "#9a1414", bannerGlow: 0x3a0806, carpet: "#8e1212", carpetEdge: "#e0a020",
+    trench: ["#ff5a0a", "rgba(255,210,60,0.55)", "rgba(120,20,0,0.5)"],
+  };
+}
+
 function stoneTexture(base = "#5c5652") {
   return canvasTexture(128, 128, (ctx, w, h) => {
     ctx.fillStyle = base;
@@ -781,6 +803,7 @@ function stoneTexture(base = "#5c5652") {
 function buildCastleHalls(track, g) {
   if (!track.castles?.length) return;
   const main = track.main ?? track;
+  const look = hallLook(main.theme);
   const wo = track.wallOffset;
   const iw = wo + 0.3; // 内壁は道の柵の少し外（柵が腰壁に見える）
   const W = HALL.half;
@@ -806,17 +829,33 @@ function buildCastleHalls(track, g) {
       return Math.abs(q.lateral) < W + 1 && inHall(o, q.s);
     });
 
-  const innerMat = new THREE.MeshLambertMaterial({ map: stoneTexture("#6a5a52"), side: THREE.DoubleSide, emissive: 0x2a1208 });
-  const outerMat = new THREE.MeshLambertMaterial({ map: stoneTexture(), side: THREE.DoubleSide });
-  const pillarMat = new THREE.MeshLambertMaterial({ map: stoneTexture("#7a6c64"), emissive: 0x24100a });
+  const innerMat = new THREE.MeshLambertMaterial({ map: stoneTexture(look.inner), side: THREE.DoubleSide, emissive: look.haunted ? look.glow : 0x2a1208 });
+  const outerMat = new THREE.MeshLambertMaterial({ map: stoneTexture(look.outer), side: THREE.DoubleSide });
+  const pillarMat = new THREE.MeshLambertMaterial({ map: stoneTexture(look.pillar), emissive: look.glow });
   const ironMat = new THREE.MeshLambertMaterial({ color: 0x2a2624 });
-  const roofMat = new THREE.MeshLambertMaterial({ color: 0x8a1a1a });
-  const winMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffa23a).multiplyScalar(2.5), side: THREE.DoubleSide });
-  const flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff9a2a).multiplyScalar(3.5) });
+  const roofMat = new THREE.MeshLambertMaterial({ color: look.roof });
+  const winMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(look.window).multiplyScalar(2.5), side: THREE.DoubleSide });
+  const flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(look.flame).multiplyScalar(3.5) });
   const bannerMat = new THREE.MeshLambertMaterial({
     side: THREE.DoubleSide,
-    emissive: 0x3a0806,
+    emissive: look.bannerGlow,
     map: canvasTexture(64, 128, (ctx, w, h) => {
+      if (look.haunted) {
+        // 破れたカーテン：すそがぼろぼろに裂けている
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = look.banner;
+        ctx.fillRect(0, 0, w, h * 0.55);
+        for (let x = 0; x < w; x += 8) {
+          const len = h * (0.2 + Math.random() * 0.25);
+          ctx.fillRect(x, h * 0.5, 6, len);
+        }
+        speckle(ctx, w, h, 200, ["rgba(0,0,0,0.25)", "rgba(255,255,255,0.05)"], 3);
+        ctx.fillStyle = "rgba(0,0,0,0.3)";
+        for (let x = 6; x < w; x += 16) ctx.fillRect(x, 0, 3, h * 0.6);
+        ctx.fillStyle = "#c8b060";
+        ctx.fillRect(0, 0, w, 5);
+        return;
+      }
       ctx.fillStyle = "#9a1414";
       ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = "#e6a21a";
@@ -858,19 +897,20 @@ function buildCastleHalls(track, g) {
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -2,
     map: canvasTexture(64, 128, (ctx, w, h) => {
-      ctx.fillStyle = "#8e1212";
+      ctx.fillStyle = look.carpet;
       ctx.fillRect(0, 0, w, h);
       speckle(ctx, w, h, 500, ["rgba(0,0,0,0.12)", "rgba(255,120,120,0.08)"], 2);
-      ctx.fillStyle = "#e0a020";
+      ctx.fillStyle = look.carpetEdge;
       ctx.fillRect(3, 0, 4, h);
       ctx.fillRect(w - 7, 0, 4, h);
     }),
   });
+  // 壁ぎわの溝（ふつうは溶岩、お化け屋敷は緑に光るどろどろ）
   const lavaTex = canvasTexture(64, 256, (ctx, w, h) => {
-    ctx.fillStyle = "#ff5a0a";
+    ctx.fillStyle = look.trench[0];
     ctx.fillRect(0, 0, w, h);
     for (let i = 0; i < 70; i++) {
-      ctx.fillStyle = i % 3 ? "rgba(255,210,60,0.55)" : "rgba(120,20,0,0.5)";
+      ctx.fillStyle = i % 3 ? look.trench[1] : look.trench[2];
       ctx.beginPath();
       ctx.ellipse(Math.random() * w, Math.random() * h, 4 + Math.random() * 10, 8 + Math.random() * 20, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -1235,7 +1275,7 @@ function buildNature(track, g, terrain) {
   const types = sc.treeTypes ?? ["pine", "pine", "pine", "round", "round"];
   const { minX, maxX, minZ, maxZ } = track.bounds;
   const spread = sc.spread ?? 350; // コースの外側どこまで木を置くか
-  const spots = { pine: [], snowpine: [], round: [], palm: [], jungle: [], rock: [], bush: [] };
+  const spots = { pine: [], snowpine: [], round: [], palm: [], jungle: [], dead: [], rock: [], bush: [] };
   let placed = 0;
   for (let tries = 0; tries < count * 12 && placed < count; tries++) {
     const x = lerp(minX - spread, maxX + spread, rng());
@@ -1347,6 +1387,18 @@ function buildNature(track, g, terrain) {
     new THREE.IcosahedronGeometry(2.2, 1).scale(1, 0.6, 1).translate(0.6, 9.6, -2.6),
   ]), leafMat, spots.jungle, (i) => leafColor(i + 3, -0.01));
 
+  // 枯れ木：葉のない曲がった幹と、上へ伸びる枝
+  const branch = (len, r, tiltZ, rotY, y) =>
+    new THREE.CylinderGeometry(r * 0.4, r, len, 5).translate(0, len / 2, 0).rotateZ(tiltZ).rotateY(rotY).translate(0, y, 0);
+  instanced(mergeGeos([
+    new THREE.CylinderGeometry(0.3, 0.6, 7, 6).translate(0, 3.5, 0).rotateZ(0.08),
+    branch(3.6, 0.28, 0.9, 0, 4.2),
+    branch(3.2, 0.25, 0.8, 2.3, 5.2),
+    branch(2.8, 0.22, 0.7, 4.2, 6),
+    branch(2.2, 0.18, 0.35, 1.2, 6.8),
+    branch(1.6, 0.12, 1.1, 0.4, 6.3).translate(-1.6, 0.9, 0),
+  ]), trunkMat, spots.dead);
+
   // しげみ・シダ
   instanced(mergeGeos([
     new THREE.IcosahedronGeometry(1.3, 1).scale(1, 0.6, 1).translate(0, 0.5, 0),
@@ -1432,12 +1484,21 @@ function buildRuins(track, g, tex, terrain) {
 /**
  * 雪山の飾り：丸太小屋（scenery.cabins）・雪だるま（scenery.snowmen）・降る雪（theme.snowfall）
  */
-function buildWinter(track, g, terrain) {
-  const sc = track.def.scenery ?? {};
-  const rng = mulberry32((sc.seed ?? 1) + 101);
-  const wo = track.wallOffset;
+/** (x, z) がどの道（メインコース・枝道）の壁からも margin 以上外にあるか */
+function clearOfRoads(track, x, z, margin) {
+  for (const path of track.paths) {
+    const lim = (path.wallOffset + margin) ** 2;
+    for (let i = 0; i < path.count; i++) {
+      if ((path.px[i] - x) ** 2 + (path.pz[i] - z) ** 2 < lim) return false;
+    }
+  }
+  return true;
+}
+
+/** コース脇（壁から minOff〜maxOff 外側）の平らな地面を 1 か所選ぶ関数を作る。見つからなければ null */
+function sideSpots(track, terrain, rng) {
   const p = {};
-  const spot = (minOff, maxOff) => {
+  return (minOff, maxOff) => {
     for (let tries = 0; tries < 40; tries++) {
       const i = Math.floor(rng() * track.count);
       if (track.gapF[i] || track.bridgeF[i] || track.tunnelF[i]) continue;
@@ -1446,10 +1507,19 @@ function buildWinter(track, g, terrain) {
       track.pointAt(i * track.segLen, side * lerp(minOff, maxOff, rng()), p);
       const h = terrain.heightAt(p.x, p.z);
       if (h < track.theme.waterLevel + 1 || Math.abs(h - p.y) > 6) continue;
+      // 枝道の上や、分岐・合流のあたりには置かない
+      if (!clearOfRoads(track, p.x, p.z, 1)) continue;
       return { x: p.x, y: h, z: p.z, heading: p.heading, side };
     }
     return null;
   };
+}
+
+function buildWinter(track, g, terrain) {
+  const sc = track.def.scenery ?? {};
+  const rng = mulberry32((sc.seed ?? 1) + 101);
+  const wo = track.wallOffset;
+  const spot = sideSpots(track, terrain, rng);
 
   const logMat = new THREE.MeshLambertMaterial({ color: 0x7a4e2c });
   const roofMat = new THREE.MeshLambertMaterial({ color: 0xf4f8ff });
@@ -1517,6 +1587,103 @@ function buildWinter(track, g, terrain) {
 
   if (track.theme.snowfall) track.snowfall = buildSnowfall();
   if (track.snowfall) g.add(track.snowfall);
+}
+
+/**
+ * お化け屋敷のコース脇：墓石と十字架（scenery.graves）、顔が光るカボチャ（scenery.pumpkins）。
+ * 墓はいくつかの墓地にまとまって並ぶ。
+ */
+function buildGraveyard(track, g, terrain) {
+  const sc = track.def.scenery ?? {};
+  if (!sc.graves && !sc.pumpkins) return;
+  const rng = mulberry32((sc.seed ?? 1) + 202);
+  const wo = track.wallOffset;
+  const spot = sideSpots(track, terrain, rng);
+
+  const stoneMat = new THREE.MeshLambertMaterial({ color: 0x8a8a92, flatShading: true });
+  const stoneGeo = mergeGeos([
+    new THREE.BoxGeometry(1.6, 1.8, 0.4).translate(0, 0.9, 0),
+    new THREE.CylinderGeometry(0.8, 0.8, 0.4, 12, 1, false, 0, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2).translate(0, 1.8, 0),
+  ]);
+  const crossGeo = mergeGeos([
+    new THREE.BoxGeometry(0.35, 2.6, 0.35).translate(0, 1.3, 0),
+    new THREE.BoxGeometry(1.5, 0.35, 0.35).translate(0, 1.9, 0),
+  ]);
+  const graves = [];
+  const crosses = [];
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const e = new THREE.Euler();
+  let left = sc.graves ?? 0;
+  while (left > 0) {
+    const at = spot(wo + 5, wo + 30);
+    if (!at) break;
+    // 1 つの墓地に 6〜12 基。コースに向けて並べ、少し傾ける
+    const n = Math.min(left, 6 + Math.floor(rng() * 7));
+    left -= n;
+    const face = at.heading + (at.side > 0 ? -Math.PI / 2 : Math.PI / 2);
+    for (let k = 0; k < n; k++) {
+      const u = (k % 4) * 3.2 - 4.8 + (rng() - 0.5);
+      const v = Math.floor(k / 4) * 3.6 + (rng() - 0.5);
+      const x = at.x + Math.cos(face) * u + Math.sin(face) * -v;
+      const z = at.z - Math.sin(face) * u + Math.cos(face) * -v;
+      if (!clearOfRoads(track, x, z, 1.5)) continue;
+      const y = terrain.heightAt(x, z) - 0.2;
+      q.setFromEuler(e.set((rng() - 0.5) * 0.25, face + (rng() - 0.5) * 0.4, (rng() - 0.5) * 0.3));
+      const size = 0.8 + rng() * 0.5;
+      (rng() < 0.3 ? crosses : graves).push(m.compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(size, size, size)).clone());
+    }
+  }
+  for (const [geo, list] of [[stoneGeo, graves], [crossGeo, crosses]]) {
+    if (!list.length) continue;
+    const mesh = new THREE.InstancedMesh(geo, stoneMat, list.length);
+    list.forEach((mat, i) => mesh.setMatrixAt(i, mat));
+    mesh.castShadow = mesh.receiveShadow = true;
+    g.add(mesh);
+  }
+
+  // ジャック・オ・ランタン：顔の穴から光が漏れる
+  const faceTex = canvasTexture(128, 64, (ctx, w, h) => {
+    ctx.fillStyle = "#e06a14";
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = "rgba(120,40,0,0.35)";
+    for (let x = 8; x < w; x += 16) ctx.fillRect(x, 0, 3, h);
+    // 顔は u = 0.25 のあたり（球の +z 側）
+    ctx.fillStyle = "#ffe066";
+    const cx = w * 0.25;
+    for (const d of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(cx + d * 5, 26);
+      ctx.lineTo(cx + d * 14, 26);
+      ctx.lineTo(cx + d * 9, 17);
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.moveTo(cx - 14, 36);
+    for (let k = 0; k <= 6; k++) ctx.lineTo(cx - 14 + k * (28 / 6), k % 2 ? 44 : 38);
+    ctx.lineTo(cx + 14, 36);
+    ctx.lineTo(cx, 50);
+    ctx.fill();
+  }, false);
+  const pumpkinMat = new THREE.MeshLambertMaterial({ map: faceTex, emissiveMap: faceTex, emissive: 0x6a3a10 });
+  const stemMat = new THREE.MeshLambertMaterial({ color: 0x3a5a1a });
+  for (let k = 0; k < (sc.pumpkins ?? 0); k++) {
+    const at = spot(wo + 1.5, wo + 8);
+    if (!at) continue;
+    const pk = new THREE.Group();
+    const s = 0.8 + rng() * 0.7;
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12).scale(1.2, 0.85, 1.2), pumpkinMat);
+    ball.position.y = 0.8;
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.5, 6), stemMat);
+    stem.position.y = 1.7;
+    pk.add(ball, stem);
+    pk.traverse((o) => (o.castShadow = true));
+    pk.scale.setScalar(s);
+    pk.position.set(at.x, at.y - 0.2, at.z);
+    // 顔（+z）をコース側へ
+    pk.rotation.y = at.heading + (at.side > 0 ? -Math.PI / 2 : Math.PI / 2);
+    g.add(pk);
+  }
 }
 
 /** カメラのまわりに降り続ける雪。雪片は空間に固定し、カメラから離れたら反対側へ回り込ませる（main.js が center を更新） */

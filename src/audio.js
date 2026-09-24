@@ -174,6 +174,10 @@ class Sound {
         this.noise(0.9, 0.35, 3000);
         this.tone(1800, 0.25, { type: "sawtooth", slide: -1600, vol: 0.1 });
         return this.noise(0.8, 0.3, 180);
+      case "ghost":
+        // 「ヒュ〜」と下がる声
+        this.tone(760, 0.7, { type: "sine", slide: -420, vol: 0.12 });
+        return this.tone(1140, 0.6, { type: "triangle", slide: -640, vol: 0.05, delay: 0.05 });
       case "star":
         [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => this.tone(f, 0.1, { type: "square", vol: 0.08, delay: i * 0.07 }));
         return;

@@ -40,7 +40,7 @@
  *     { type: "ufo",     at, count: 1, amplitude, speed: 1 }                   道の上を左右に往復する UFO（光線に当たるとスピン）
  *     { type: "meteor",  from, to, interval: 1.4 }                             赤い印で予告して降ってくる隕石
  *     { type: "snowball", from, to, count: 3, speed: 15, radius: 2.2, fire }  to から from へ転がり落ちてくる大雪玉（fire: true で大火の玉）
- *     { type: "firebar", at, lateral: 0, length: 7, speed: 1.6 }               道の上で水平に回る火の玉の棒（speed を負にすると逆回転）
+ *     { type: "firebar", at, lateral: 0, length: 7, speed: 1.6, color }        道の上で水平に回る火の玉の棒（speed を負にすると逆回転。color: 0x5ad8ff で青白い人魂）
  *     { type: "pendulum", at, lateral: [-4.25, 4.25], length: 9, speed: 1.6, phase: 0, stagger: π, amplitude: 0.37 }
  *                  石の門から吊られ、道を横切って振れる丸太。lateral の位置に 1 本ずつ吊る（既定は道幅の左右 1/4 の所に 2 本）。
  *                  stagger は丸太ごとの振りのずれ（π で逆向き、0 でそろって振れる）。石柱が壁のように路肩をふさぐので回り込めない
@@ -48,10 +48,11 @@
  *     { type: "crab",    at, count: 2, speed: 4 }                              道を横歩きで往復する大ガニ（count 匹が 14 おきに並ぶ）
  *     { type: "lightning", from, to, count: 1, interval: 2.4 }                 車の行く先へ寄ってきて、黄色い印で予告してから雷を落とす雷雲
  *     { type: "tornado", from, to, count: 1, speed: 6 }                        蛇行しながら区間を行き来するつむじ風（巻き込まれると放り上げられる）
+ *     { type: "ghost",   from, to, count: 2, speed: 8 }                        透けて漂い、区間を走る車の行く手に現れて寄ってくるおばけ（透けている間は当たらない）
  *   theme        色や地形の上書き（src/track.js の DEFAULT_THEME を参照。waterLevel, hills, mountains など）
  *   scenery      { trees: 木の本数, seed: 地形と木の乱数シード,
- *                  treeTypes: ["pine" | "snowpine" | "round" | "palm" | "jungle", ...]（多く書いた種類ほど増える）,
- *                  cabins: 丸太小屋の数, snowmen: 雪だるまの数,
+ *                  treeTypes: ["pine" | "snowpine" | "round" | "palm" | "jungle" | "dead", ...]（多く書いた種類ほど増える。dead は枯れ木）,
+ *                  cabins: 丸太小屋の数, snowmen: 雪だるまの数, graves: 墓石と十字架の数（墓地にまとまる）, pumpkins: 光るカボチャの数,
  *                  bushes: コース脇のしげみの数, balloons: false で気球なし,
  *                  clearance: 壁から木までの最小距離（既定 14）, spread: コースの外側どこまで木を置くか（既定 350） }
  *   theme.bridgeStyle: "wood" で橋が木の吊り橋に、theme.roadCenter: false で中央線なし
@@ -61,6 +62,7 @@
  *   theme.frozen: true で水面が凍った湖に、theme.snowfall: true で雪が降る
  *   theme.lava: true で水面が溶岩に（落ちるとコースに戻される）
  *   theme.castle: true で城壁風の柵（胸壁と松明）、theme.roadBricks: true で石畳、theme.wallHeight で柵の高さ
+ *   theme.haunted: true でお化け屋敷（城・大広間が洋館になり、松明は青白い人魂、窓は緑、溝は光るどろどろ。例 hauntedMansion.js）
  *   theme.cloudColor で雲の色、scenery.castle: { x, z, size, rotation } で城を建てる（x, z の代わりに at: 割合 で城内の屋根の上に建つ）
  *   宇宙コースでは立体交差もできる（上下の道は 15 以上離す）
  *
@@ -73,5 +75,6 @@ import snowPeak from "./snowPeak.js";
 import magmaCastle from "./magmaCastle.js";
 import seasideBay from "./seasideBay.js";
 import thunderCanyon from "./thunderCanyon.js";
+import hauntedMansion from "./hauntedMansion.js";
 
-export const TRACKS = [sunnyCircuit, jungleRuins, snowPeak, magmaCastle, seasideBay, starlightRoad, thunderCanyon];
+export const TRACKS = [sunnyCircuit, jungleRuins, snowPeak, magmaCastle, seasideBay, starlightRoad, thunderCanyon, hauntedMansion];

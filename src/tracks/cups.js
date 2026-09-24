@@ -13,6 +13,7 @@ const CUP_DEFS = [
   { id: "flame", name: "フレイムカップ", icon: "🔥", courses: ["sunny-circuit", "starlight-road", "jungle-ruins", "magma-castle"] },
   { id: "star", name: "スターカップ", icon: "⭐", courses: ["seaside-bay", "magma-castle", "snow-peak", "starlight-road"] },
   { id: "thunder", name: "サンダーカップ", icon: "⚡", courses: ["jungle-ruins", "starlight-road", "magma-castle", "thunder-canyon"] },
+  { id: "ghost", name: "ゴーストカップ", icon: "👻", courses: ["snow-peak", "seaside-bay", "thunder-canyon", "haunted-mansion"] },
 ];
 
 // コースの id を TRACKS の番号に置き換えておく

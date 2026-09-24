@@ -139,6 +139,9 @@ export function courseStats(track) {
     length: Math.round(track.length),
     climb: Math.round(hi - lo),
     branches: track.branches.length,
-    features: FEATURE_LABELS.filter(([key]) => track[key]?.length),
+    // お化け屋敷の城内は「館内」と呼ぶ
+    features: FEATURE_LABELS.filter(([key]) => track[key]?.length).map(([key, label, color]) =>
+      key === "castles" && track.theme.haunted ? [key, "館内", color] : [key, label, color],
+    ),
   };
 }
