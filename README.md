@@ -54,7 +54,7 @@ npm start
   - サニーサーキット：丘越えの大ジャンプ、川に架かる橋、山のトンネル、バンク付きのカーブ、壁のない海辺の崖道
   - ジャングル遺跡：密林の土の道、岩山の洞窟、台地の古代遺跡（石柱・石のアーチ・神殿）、川の谷越えジャンプ、木の吊り橋、川沿いの崖道
   - スノーピーク：つづら折りで雪山を登り、山頂のトンネルからスキージャンプで谷越え。崖沿いの下り、凍った湖岸のつるつる滑る道。雪が降り、丸太小屋や雪だるまも
-  - マグマキャッスル：溶岩の海に浮かぶ岩の道と、中央にそびえる城。溶岩の裂け目ジャンプ、石橋、城門。北は「壁のある回り道」と「壁のない溶岩の上の近道」に、西は左右 2 本に分かれて合流する
+  - マグマキャッスル：溶岩の海に浮かぶ岩の道と魔王の城。石橋と火の玉の坂を越え、北は「壁のある回り道」と「壁のない溶岩の上の近道」に分かれる。後半は城の中へ。城内は 2 本の大広間に分かれ、外回りはクラッシャー、城側はファイアバーが待つ
   - スターライトロード：宇宙に浮かぶ虹色の道。立体交差の 8 の字、柵のない区間、宇宙の裂け目ジャンプ
   - 谷や崖から落ちるとコース上に戻されます
 - **分かれ道**：コースが分岐して合流する所があり、好きな方を選べます（NPC もルートを選びます）
@@ -93,7 +93,7 @@ export default {
 
 分かれ道は `branches` で作れます（分岐する位置 `from`・合流する位置 `to`・途中で通る点 `points`。壁なしや幅も指定可。例：`src/tracks/magmaCastle.js`）。
 
-邪魔してくる敵は `hazards` で置けます（`crusher` / `ufo` / `meteor` / `snowball` / `firebar`）。溶岩と城の見た目は `theme.lava` / `theme.castle` と `scenery.castle` で作れます。雪山の見た目は `theme.frozen` / `theme.snowfall` と `scenery.cabins` / `scenery.snowmen`、木の種類 `snowpine` で作れます（例：`src/tracks/snowPeak.js`）。宇宙コースは `theme.space: true` で作れます（例：`src/tracks/starlightRoad.js`）。
+邪魔してくる敵は `hazards` で置けます（`crusher` / `ufo` / `meteor` / `snowball` / `firebar`）。溶岩と城の見た目は `theme.lava` / `theme.castle` と `scenery.castle` で、城の中を走る区間は features の `castle` で作れます。雪山の見た目は `theme.frozen` / `theme.snowfall` と `scenery.cabins` / `scenery.snowmen`、木の種類 `snowpine` で作れます（例：`src/tracks/snowPeak.js`）。宇宙コースは `theme.space: true` で作れます（例：`src/tracks/starlightRoad.js`）。
 
 仕掛け（`features`）には `ramp`（ジャンプ台）、`gap`（谷）、`cliff`（壁のない崖）、`bridge`（橋）、`tunnel`（トンネル）、`bank`（バンク）、`ruins`（遺跡）、`ice`（凍った路面）があります。地形・水辺・木はコースの形から自動で作られます。
 

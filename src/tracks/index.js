@@ -24,14 +24,16 @@
  *     { type: "cliff",  from, to, side: "left" | "right" | "both" }  壁のない崖道。落ちるとコースに戻される
  *     { type: "bridge", from, to }                 谷に架かる橋（下は川になる）
  *     { type: "tunnel", from, to }                 山を貫くトンネル
+ *     { type: "castle", from, to }                 城の大広間の中を走る（柱・松明・じゅうたん。scenery.castle.at で屋根に本丸）
  *     { type: "bank",   from, to, angle: 12 }      カーブの外側が高いバンク（向きは自動）
  *     { type: "ruins",  from, to }                 苔むした石柱・石のアーチ・脇に神殿が並ぶ遺跡
  *     { type: "ice",    from, to }                 つるつる滑る凍った路面
  *     { type: "shallows", from, to, depth: 0.4, ramp }  海に沈んだ道（海面より depth 下を走る。少し遅くなる。
  *                  depth を大きくすると完全に潜り、水中はカメラが青くかすむ。ramp は出入りの坂の長さ（既定 depth×8、最低 30）
  *   branches     分かれ道（src/branch.js 参照）。メインコースの from で分かれ、points を通って to で合流する:
- *     { from, to, points: [[x, y, z], ...], width, shoulderWidth, noWalls, elevated, itemBoxRows, boostPads, aiChance }
+ *     { from, to, points: [[x, y, z], ...], width, shoulderWidth, noWalls, elevated, itemBoxRows, boostPads, aiChance, castle }
  *     noWalls: 壁なし（はみ出すと落ちる）, elevated: 下を谷（水・溶岩）まで掘り下げる, aiChance: NPC がこの道を選ぶ確率
+ *     castle: { from, to } で枝道の一部が城内になる（割合は枝道の長さに対して。メインの castle と並べると城内が 2 本に分かれる）
  *     itemBoxRows / boostPads の位置は枝道の長さに対する割合。枝道はメインコースから 30 以上離れた所を通す
  *   hazards      邪魔してくる敵（src/hazards.js 参照。branch: 番号 で枝道の上にも置ける）:
  *     { type: "crusher", at, lateral: [-5, 0, 5], period: 3.2, stagger: 0.8 }  震えて予告してから落ちてくる石ブロック
@@ -52,7 +54,7 @@
  *   theme.frozen: true で水面が凍った湖に、theme.snowfall: true で雪が降る
  *   theme.lava: true で水面が溶岩に（落ちるとコースに戻される）
  *   theme.castle: true で城壁風の柵（胸壁と松明）、theme.roadBricks: true で石畳、theme.wallHeight で柵の高さ
- *   theme.cloudColor で雲の色、scenery.castle: { x, z, size, rotation } で城を建てる
+ *   theme.cloudColor で雲の色、scenery.castle: { x, z, size, rotation } で城を建てる（x, z の代わりに at: 割合 で城内の屋根の上に建つ）
  *   宇宙コースでは立体交差もできる（上下の道は 15 以上離す）
  *
  * 高低差は points の 2 番目の値（高さ）で付ける。坂の頂上が急だと自然に車体が浮く。

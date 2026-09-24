@@ -177,6 +177,7 @@ export class Track {
     this.cliffs = of("cliff").map(span);
     this.bridges = of("bridge").map(span);
     this.tunnels = of("tunnel").map(span);
+    this.castles = of("castle").map(span);
     this.banks = of("bank").map(span);
     this.ruins = of("ruins").map(span);
     this.ice = of("ice").map(span);
@@ -186,7 +187,8 @@ export class Track {
       const s = i * this.segLen;
       this.gapF[i] = this.inAny(this.gaps, s) ? 1 : 0;
       this.bridgeF[i] = this.inAny(this.bridges, s) ? 1 : 0;
-      this.tunnelF[i] = this.inAny(this.tunnels, s) ? 1 : 0;
+      // 城内も屋根のある区間としてトンネルと同じに扱う（木や看板を置かない）
+      this.tunnelF[i] = this.inAny(this.tunnels, s) || this.inAny(this.castles, s) ? 1 : 0;
       this.cliffL[i] = this.cliffSide(s, 1) ? 1 : 0;
       this.cliffR[i] = this.cliffSide(s, -1) ? 1 : 0;
     }

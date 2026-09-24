@@ -8,6 +8,7 @@ const COLORS = {
   road: "#3a3f52",
   branch: "#6b5fd6",
   tunnel: "#1b1d29",
+  castle: "#8e1212",
   gap: "#ff3d5a",
   ice: "#8fd8ff",
   bridge: "#b07a3e",
@@ -17,6 +18,7 @@ const COLORS = {
 
 export const FEATURE_LABELS = [
   ["tunnels", "トンネル", COLORS.tunnel],
+  ["castles", "城内", COLORS.castle],
   ["bridges", "橋", COLORS.bridge],
   ["gaps", "ジャンプ", COLORS.gap],
   ["cliffs", "崖道", COLORS.cliff],
@@ -86,6 +88,7 @@ export function drawCoursePreview(canvas, track) {
   for (const f of track.bridges) strokeRange(track, f.s0, f.len, COLORS.bridge, roadW);
   for (const f of track.cliffs) strokeRange(track, f.s0, f.len, COLORS.cliff, roadW * 0.4, [3, 3]);
   for (const f of track.tunnels) strokeRange(track, f.s0, f.len, COLORS.tunnel, roadW + 3);
+  for (const p of track.paths) for (const f of p.castles) strokeRange(p, f.s0, f.len, COLORS.castle, roadW + 3);
   for (const f of track.gaps) strokeRange(track, f.s0 - 4, f.len + 8, COLORS.gap, roadW + 3);
 
   // スタートライン（チェッカー）と進行方向の矢印
