@@ -4,7 +4,7 @@ import { Kart, DRIFT_LEVELS, BOOST_COLOR } from "./kart.js";
 import { AIDriver } from "./ai.js";
 import { ItemSystem } from "./items.js";
 import { HazardSystem } from "./hazards.js";
-import { clamp, lerp, mulberry32 } from "./utils.js";
+import { clamp, damp, lerp, mulberry32 } from "./utils.js";
 
 /** 出場する 8 台。0 番がプレイヤー、残り 7 台が NPC */
 export const RACERS = [
@@ -26,6 +26,8 @@ export const DIFFICULTIES = {
 
 const PLAYER_GRID_SLOT = 5; // 0 がポールポジション
 const COUNTDOWN = 4;
+const BULLET_SPEED = 50;
+const tmp = { x: 0, y: 0, z: 0, heading: 0 };
 
 export class Race {
   constructor({ scene, trackDef, difficulty = "normal", particles, sound, demo = false, onEvent = () => {} }) {
@@ -108,9 +110,10 @@ export class Race {
         this.updateRespawn(k, dt);
         continue;
       }
-      k.physics(dt, this);
+      if (k.bulletTimer > 0) this.moveBullet(k, dt);
+      else k.physics(dt, this);
 
-      if (c.item && !k.prevItem && k.item && k.roulette <= 0 && k.spinTimer <= 0) this.items.use(k);
+      if (c.item && !k.prevItem && k.item && k.roulette <= 0 && k.spinTimer <= 0 && k.bulletTimer <= 0) this.items.use(k);
       k.prevItem = c.item;
       this.checkBoostPads(k);
     }
@@ -197,6 +200,31 @@ export class Race {
     this.burst(k.pos.x, k.y, k.pos.z, [0xffffff, 0x9fd3ff], 20, 6);
   }
 
+  /** ジェット中：操作は受け付けず、NPC と同じルート選びでコースの中央を高速で進む（壁・穴は無視） */
+  moveBullet(k, dt) {
+    const drv = this.drivers.get(k);
+    const path = k.path ?? this.track;
+    const lateral = damp(k.proj.lateral, 0, 2.5, dt);
+    this.track.routePoint(path, k.proj.s, BULLET_SPEED * dt, lateral, drv.choose, tmp);
+    k.pos.x = tmp.x;
+    k.pos.z = tmp.z;
+    k.heading = k.moveAngle = tmp.heading;
+    k.speed = BULLET_SPEED;
+    this.track.locate(k.pos.x, k.pos.z, k, k.proj);
+    k.y = damp(k.y, tmp.surfaceY ?? tmp.y, 10, dt);
+    k.vy = 0;
+    k.airborne = k.launched = k.trick = k.drifting = false;
+    k.pitch = damp(k.pitch, -Math.atan(k.proj.slope ?? 0), 8, dt);
+    k.roll = 0;
+    k.boostTimer = Math.max(k.boostTimer, 0.1);
+    k.syncMesh(dt, 0);
+    if ((k.bulletTimer -= dt) <= 0) {
+      k.bulletTimer = 0;
+      k.giveBoost(0.8);
+      k.invuln = 1;
+    }
+  }
+
   /** 後ろの NPC は少し速く、前の NPC は少し遅く */
   rubberBand(k) {
     const base = this.drivers.get(k).baseSpeed;
@@ -227,9 +255,24 @@ export class Race {
         const dz = b.pos.z - a.pos.z;
         const d2 = dx * dx + dz * dz;
         if (d2 > R * R || d2 < 1e-6 || Math.abs(a.y - b.y) > 2.5 || a.respawnTimer > 0 || b.respawnTimer > 0) continue;
+        // スター・ジェットは体当たりでスピンさせ、小さくなったカートは踏みつぶされる
+        const strong = (k) => k.starTimer > 0 || k.bulletTimer > 0;
+        for (const [x, y] of [[a, b], [b, a]]) {
+          if ((strong(x) && !strong(y)) || (y.shrinkTimer > 0 && !(x.shrinkTimer > 0) && !strong(y))) {
+            if (y.hit()) this.emit("hit", y, { by: x, type: strong(x) ? "ram" : "squash" });
+          }
+        }
         const d = Math.sqrt(d2);
         const nx = dx / d;
         const nz = dz / d;
+        // スター・ジェット側は押し返されず減速もしない。相手だけをはじき飛ばす
+        if (strong(a) !== strong(b)) {
+          const weak = strong(a) ? b : a;
+          const s = weak === b ? 1 : -1;
+          weak.pos.x += nx * s * (R - d);
+          weak.pos.z += nz * s * (R - d);
+          continue;
+        }
         const ov = (R - d) / 2;
         a.pos.x -= nx * ov;
         a.pos.z -= nz * ov;
@@ -430,7 +473,23 @@ export class Race {
         if (isPlayer) this.sound.play("get");
         break;
       case "useItem":
-        if (near) this.sound.play("throw");
+        if (near && !["star", "lightning", "bullet", "horn", "ink"].includes(data)) this.sound.play("throw");
+        break;
+      case "star":
+      case "bullet":
+        if (isPlayer) this.sound.play(type);
+        break;
+      case "horn":
+        if (isPlayer || near) this.sound.play("horn");
+        break;
+      case "lightning":
+        if (!this.demo) this.sound.play("thunder");
+        break;
+      case "ink":
+        if (!this.demo && (isPlayer || this.player.inkTimer > 0)) this.sound.play("ink");
+        break;
+      case "spiny":
+        if (isPlayer || data === this.player) this.sound.play("spiny");
         break;
       case "lap":
         if (isPlayer) this.sound.play("lap");

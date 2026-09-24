@@ -56,6 +56,8 @@ export class AIDriver {
     track.routePoint(path, s, 7 + Math.max(0, k.speed) * 0.5, lane, this.choose, tmp);
     const diff = wrapAngle(Math.atan2(tmp.x - k.pos.x, tmp.z - k.pos.z) - k.heading);
     let steer = clamp(diff * 2.6, -1, 1);
+    // スミで前が見えない間はハンドルがふらつく
+    if (k.inkTimer > 0) steer = clamp(steer + Math.sin(race.time * 2.3 + this.phase) * 0.45, -1, 1);
     let throttle = 1;
     let brake = 0;
     if (Math.abs(diff) > 1.0 && k.speed > 14) {
@@ -100,7 +102,7 @@ export class AIDriver {
     let shift = 0;
     const path = k.path ?? track;
     for (const o of this.race.items.objects) {
-      if ((o.owner === k && o.age < 1) || (o.path ?? track) !== path) continue;
+      if ((o.owner === k && o.age < 1) || (o.path ?? track) !== path || o.type === "spiny" || o.type === "blast") continue;
       const ds = path.deltaS(o.proj.s, k.proj.s);
       if (ds < 2 || ds > 28) continue;
       const dl = o.proj.lateral - lane;
@@ -134,18 +136,47 @@ export class AIDriver {
     switch (k.item) {
       case "boost":
       case "triple":
+      case "gold":
         fire = !k.offroad && Math.abs(turnAhead) < 0.3;
         break;
       case "banana":
+      case "banana3":
+      case "fake":
         fire = near(-20, -3) || this.itemTimer < -8;
         break;
       case "shell":
+      case "shell3":
         if (near(4, 40)) fire = true;
         else if (near(-12, -3)) fire = back = true;
         else fire = this.itemTimer < -10;
         break;
+      case "bomb":
+        if (near(6, 30)) fire = true;
+        else if (near(-12, -3)) fire = back = true;
+        else fire = this.itemTimer < -8;
+        break;
       case "homing":
+      case "homing3":
         fire = k.rank > 1 || this.itemTimer < -12;
+        break;
+      case "spiny":
+        fire = k.rank > 2 || this.itemTimer < -6;
+        break;
+      case "ink":
+        fire = k.rank > 1;
+        break;
+      case "horn": {
+        // 近くに相手がいるか、トップシェルが自分に向かってきたら鳴らす
+        const spiny = this.race.items.objects.some((o) => o.type === "spiny" && o.target === k && Math.hypot(o.x - k.pos.x, o.z - k.pos.z) < 25);
+        fire = spiny || near(-8, 8) || this.itemTimer < -15;
+        break;
+      }
+      case "star":
+      case "lightning":
+        fire = true;
+        break;
+      case "bullet":
+        fire = !k.airborne;
         break;
     }
     if (fire && this.rng() < this.aggro + 0.2) {

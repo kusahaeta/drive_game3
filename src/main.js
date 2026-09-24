@@ -80,11 +80,11 @@ function shake(amount, rumbleMs = 0) {
   if (rumbleMs) input.rumble(amount * 1.4, rumbleMs);
 }
 
-function flash() {
+function flash(cls = "hit") {
   const el = $("flash");
-  el.classList.remove("hit");
+  el.classList.remove("hit", "zap");
   void el.offsetWidth;
-  el.classList.add("hit");
+  el.classList.add(cls);
 }
 
 function feedback(type, kart, data) {
@@ -109,6 +109,12 @@ function feedback(type, kart, data) {
     case "fall":
       if (me) shake(0.35, 200);
       break;
+    case "lightning":
+      flash("zap");
+      if (kart !== p && p.shrinkTimer > 0) shake(0.5, 250);
+      break;
+    case "star":
+    case "bullet":
     case "rocket":
     case "boostPad":
     case "boostItem":
@@ -118,8 +124,9 @@ function feedback(type, kart, data) {
     case "driftBoost":
       if (me) shake(0.06 + data * 0.05, 60);
       break;
-    case "slam": // クラッシャーや隕石は近いほど大きく揺れる
-    case "meteor": {
+    case "slam": // クラッシャーや隕石・爆発は近いほど大きく揺れる
+    case "meteor":
+    case "explode": {
       const d = Math.hypot(data.x - p.pos.x, data.z - p.pos.z);
       if (d < 50) shake((type === "slam" ? 0.5 : 0.6) * (1 - d / 50), 150);
       break;
