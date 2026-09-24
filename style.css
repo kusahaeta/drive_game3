@@ -384,10 +384,17 @@ button {
   opacity: 0.7;
 }
 
-#difficulty {
+#difficulty,
+#mode-select {
   display: flex;
   gap: 8px;
 }
+.pill small {
+  display: block;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
 .pill {
   flex: 1;
   padding: 8px 0;
@@ -498,6 +505,36 @@ kbd {
 #result-table tr.me td {
   background: #fff1d6;
 }
+#result-table td.gain {
+  color: var(--accent);
+}
+#result-table td.gain:not(:empty) {
+  animation: gain-pop 0.35s ease-out;
+}
+@keyframes gain-pop {
+  from {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+/* グランプリの集計後、総合順位に並べ替える時の移動 */
+#result-table tr[data-index] {
+  position: relative;
+  transition: transform 0.6s cubic-bezier(0.3, 0.9, 0.3, 1);
+}
+#result-table td .move {
+  margin-left: 4px;
+  font-size: 10px;
+}
+#result-table td .move.up {
+  color: #1f9d55;
+}
+#result-table td .move.down {
+  color: #8a8fa3;
+}
+#result-table td.total {
+  font-size: 15px;
+}
 .buttons {
   display: flex;
   gap: 10px;
@@ -593,7 +630,8 @@ kbd {
   }
 }
 
-#course-select {
+#course-select,
+#cup-select {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
@@ -614,10 +652,12 @@ kbd {
 .nav:hover {
   border-color: var(--accent);
 }
-#course-prev:active {
+#course-prev:active,
+#cup-prev:active {
   transform: translateX(-3px);
 }
-#course-next:active {
+#course-next:active,
+#cup-next:active {
   transform: translateX(3px);
 }
 #course-preview {
@@ -630,10 +670,72 @@ kbd {
   border: 3px solid var(--accent);
   min-width: 0;
 }
-#course-preview.slide-next {
+/* グランプリのカップ：4 コースの小さなコース図を並べる */
+#cup-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: linear-gradient(160deg, #fff4e0, #ffeef4);
+  border: 3px solid var(--accent2);
+  min-width: 0;
+}
+#cup-preview .head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+#cup-name {
+  font-size: 20px;
+}
+#cup-preview .head small {
+  font-family: var(--num);
+  color: var(--accent);
+}
+#cup-count {
+  margin-left: auto;
+  font-family: var(--num);
+  font-size: 13px;
+  opacity: 0.5;
+}
+#cup-courses {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+#cup-courses li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+  min-width: 0;
+}
+#cup-courses canvas {
+  width: 100%;
+  height: 80px;
+  display: block;
+}
+#cup-courses b {
+  font-family: var(--num);
+  font-weight: normal;
+  color: var(--accent);
+}
+#course-preview.slide-next,
+#cup-preview.slide-next {
   animation: slide-next 0.25s ease-out;
 }
-#course-preview.slide-prev {
+#course-preview.slide-prev,
+#cup-preview.slide-prev {
   animation: slide-prev 0.25s ease-out;
 }
 @keyframes slide-next {
@@ -713,12 +815,14 @@ kbd {
   vertical-align: -1px;
   border: 1px solid rgba(0, 0, 0, 0.15);
 }
-#course-dots {
+#course-dots,
+#cup-dots {
   display: flex;
   justify-content: center;
   gap: 8px;
 }
-#course-dots button {
+#course-dots button,
+#cup-dots button {
   width: 10px;
   height: 10px;
   padding: 0;
@@ -726,16 +830,23 @@ kbd {
   border: none;
   background: #d5d9e6;
 }
-#course-dots button.selected {
+#course-dots button.selected,
+#cup-dots button.selected {
   width: 26px;
   border-radius: 999px;
   background: var(--accent);
+}
+@media (max-width: 640px) {
+  #cup-courses {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 @media (max-width: 520px) {
   #course-preview {
     grid-template-columns: 1fr;
   }
-  #course-select {
+  #course-select,
+  #cup-select {
     gap: 4px;
   }
   .nav {

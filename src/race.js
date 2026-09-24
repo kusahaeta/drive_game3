@@ -427,6 +427,7 @@ export class Race {
 
   results() {
     return this.order.map((k) => ({
+      index: k.index,
       rank: k.rank,
       name: k.name,
       color: k.color,
