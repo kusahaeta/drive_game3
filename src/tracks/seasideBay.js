@@ -8,7 +8,7 @@ export default {
   id: "seaside-bay",
   name: "シーサイドベイ",
   music: "assets/music/coastal.mp3",
-  description: "水深10mの海底へ潜って入り江を渡る。岬の崖道と桟橋ジャンプも。",
+  description: "水深10mの海底へ潜って入り江を渡る。横歩きの大ガニに注意。岬の崖道と桟橋ジャンプも。",
   laps: 3,
   roadWidth: 18,
   shoulderWidth: 5,
@@ -52,6 +52,14 @@ export default {
     // 桟橋の先からダッシュ板→ジャンプ台で海峡を飛び越えて砂浜へ
     { type: "ramp", at: 0.9185, length: 10, height: 2.4 },
     { type: "gap", from: 0.9255, to: 0.94 },
+  ],
+  hazards: [
+    // 海底の道を大ガニが横歩きで行き来する
+    { type: "crab", at: 0.15, count: 3, speed: 4 },
+    // ヤシの小島の砂浜にも
+    { type: "crab", at: 0.29, count: 2, speed: 5 },
+    // 桟橋ジャンプの着地先の砂浜
+    { type: "crab", at: 0.96, count: 2, speed: 4.5 },
   ],
   theme: {
     skyTop: "#1f8ee8",

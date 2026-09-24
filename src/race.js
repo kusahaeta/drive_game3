@@ -409,7 +409,7 @@ export class Race {
   }
 
   emit(type, kart, data) {
-    // 敵（クラッシャー・隕石）の効果音は位置 data で近さを判定
+    // 敵（クラッシャー・隕石・落雷）の効果音は位置 data で近さを判定
     if (!kart) {
       if (!this.demo && data && Math.hypot(data.x - this.player.pos.x, data.z - this.player.pos.z) < 60) this.sound.play(type);
       if (!this.demo) this.onEvent(type, kart, data);

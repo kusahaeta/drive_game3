@@ -1,14 +1,14 @@
 /**
  * スノーピーク
- * 凍った湖のほとりから、つづら折りで雪山を登り、山頂のトンネルを抜けてスキージャンプ。
- * 崖沿いを下り、湖岸の凍った道を滑ってゴールへ。登り坂では大雪玉が転がってくる。
+ * 道はコース全部が凍っている。凍った湖のほとりから、つづら折りで雪山を登り、山頂のトンネルを抜けてスキージャンプ。
+ * 崖沿いを下り、湖岸を抜けてゴールへ。あちこちでペンギンが腹ばいで滑っている。登り坂では大雪玉が転がってくる。
  * フォーマットの説明は src/tracks/index.js を参照。
  */
 export default {
   id: "snow-peak",
   name: "スノーピーク",
   music: "assets/music/snow.mp3",
-  description: "凍った湖面からスタートし、雪山を登って山頂からスキージャンプ。転がる大雪玉と、つるつる滑る凍った道に注意。",
+  description: "道がすべて凍った雪山。つるつる滑る道で雪山を登り、山頂からスキージャンプ。転がる大雪玉と、あちこちで滑るペンギンに注意。",
   laps: 3,
   roadWidth: 17,
   shoulderWidth: 6,
@@ -58,12 +58,22 @@ export default {
     { type: "gap", from: 0.5916, to: 0.605 },
     // 左側が谷へ落ちる崖沿いの下り（壁なし）
     { type: "cliff", from: 0.63, to: 0.7, side: "left" },
-    // 湖岸のつるつる滑る凍った道。ゴールをまたいでスタート直後の直線まで続く
-    { type: "ice", from: 0.9, to: 0.06 },
+    // 道はコース全部が凍っていて、つるつる滑る（from〜to は 1 周ぶんを表せないので 2 つに分ける）
+    { type: "ice", from: 0, to: 0.5 },
+    { type: "ice", from: 0.5, to: 0 },
   ],
   hazards: [
     // 登り坂を大雪玉が転がり落ちてくる
     { type: "snowball", from: 0.37, to: 0.465, count: 2, speed: 13, radius: 2.2 },
+    // コースのあちこちで、ペンギンが腹ばいで斜めに滑っている（壁で跳ね返る）
+    // スタート待ちの列・スキージャンプ・大雪玉の坂にはかからないようにしてある
+    { type: "penguin", from: 0.02, to: 0.09, count: 1, speed: 9 },
+    { type: "penguin", from: 0.12, to: 0.2, count: 1, speed: 8 },
+    { type: "penguin", from: 0.22, to: 0.35, count: 2, speed: 8 },
+    { type: "penguin", from: 0.5, to: 0.575, count: 1, speed: 8 },
+    { type: "penguin", from: 0.61, to: 0.7, count: 1, speed: 9 },
+    { type: "penguin", from: 0.72, to: 0.88, count: 2, speed: 9 },
+    { type: "penguin", from: 0.9, to: 0.965, count: 1, speed: 9 },
   ],
   theme: {
     skyTop: "#6fa8e0",

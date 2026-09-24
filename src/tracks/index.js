@@ -39,8 +39,15 @@
  *     { type: "crusher", at, lateral: [-5, 0, 5], period: 3.2, stagger: 0.8 }  震えて予告してから落ちてくる石ブロック
  *     { type: "ufo",     at, count: 1, amplitude, speed: 1 }                   道の上を左右に往復する UFO（光線に当たるとスピン）
  *     { type: "meteor",  from, to, interval: 1.4 }                             赤い印で予告して降ってくる隕石
- *     { type: "snowball", from, to, count: 3, speed: 15, radius: 2.2, fire, boulder }  to から from へ転がり落ちてくる大雪玉（fire: true で大火の玉、boulder: true で大岩）
+ *     { type: "snowball", from, to, count: 3, speed: 15, radius: 2.2, fire }  to から from へ転がり落ちてくる大雪玉（fire: true で大火の玉）
  *     { type: "firebar", at, lateral: 0, length: 7, speed: 1.6 }               道の上で水平に回る火の玉の棒（speed を負にすると逆回転）
+ *     { type: "pendulum", at, lateral: [-4.25, 4.25], length: 9, speed: 1.6, phase: 0, stagger: π, amplitude: 0.37 }
+ *                  石の門から吊られ、道を横切って振れる丸太。lateral の位置に 1 本ずつ吊る（既定は道幅の左右 1/4 の所に 2 本）。
+ *                  stagger は丸太ごとの振りのずれ（π で逆向き、0 でそろって振れる）。石柱が壁のように路肩をふさぐので回り込めない
+ *     { type: "penguin", from, to, count: 3, speed: 10 }                      腹ばいで斜めに滑り、道の端で跳ね返るペンギン（半分は向かってくる向き）
+ *     { type: "crab",    at, count: 2, speed: 4 }                              道を横歩きで往復する大ガニ（count 匹が 14 おきに並ぶ）
+ *     { type: "lightning", from, to, count: 1, interval: 2.4 }                 車の行く先へ寄ってきて、黄色い印で予告してから雷を落とす雷雲
+ *     { type: "tornado", from, to, count: 1, speed: 6 }                        蛇行しながら区間を行き来するつむじ風（巻き込まれると放り上げられる）
  *   theme        色や地形の上書き（src/track.js の DEFAULT_THEME を参照。waterLevel, hills, mountains など）
  *   scenery      { trees: 木の本数, seed: 地形と木の乱数シード,
  *                  treeTypes: ["pine" | "snowpine" | "round" | "palm" | "jungle", ...]（多く書いた種類ほど増える）,
