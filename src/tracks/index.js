@@ -65,5 +65,6 @@ import starlightRoad from "./starlightRoad.js";
 import snowPeak from "./snowPeak.js";
 import magmaCastle from "./magmaCastle.js";
 import seasideBay from "./seasideBay.js";
+import thunderCanyon from "./thunderCanyon.js";
 
-export const TRACKS = [sunnyCircuit, jungleRuins, snowPeak, magmaCastle, seasideBay, starlightRoad];
+export const TRACKS = [sunnyCircuit, jungleRuins, snowPeak, magmaCastle, seasideBay, starlightRoad, thunderCanyon];
