@@ -44,6 +44,25 @@ body.boosting #speed-lines {
   opacity: 1;
   animation: lines 0.12s steps(2) infinite;
 }
+/* 被弾したとき画面のふちが赤く光る */
+#flash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at 50% 50%, transparent 45%, rgba(255, 40, 70, 0.55) 100%);
+}
+#flash.hit {
+  animation: flash 0.6s ease-out;
+}
+@keyframes flash {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
 @keyframes lines {
   50% {
     transform: rotate(2deg) scale(1.02);

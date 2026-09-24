@@ -20,6 +20,10 @@ export const input = {
   down: (...codes) => codes.some((c) => held.has(c)),
   /** このフレームで新たに押されたキーか */
   hit: (...codes) => codes.some((c) => pressed.has(c)),
+  /** ゲームパッドを振動させる（strong: 0〜1） */
+  rumble(strong, ms) {
+    gamepad()?.vibrationActuator?.playEffect?.("dual-rumble", { duration: ms, strongMagnitude: Math.min(1, strong), weakMagnitude: Math.min(1, strong * 1.5) }).catch(() => {});
+  },
   endFrame() {
     pressed.clear();
   },

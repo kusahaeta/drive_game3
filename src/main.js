@@ -71,7 +71,61 @@ let difficulty = "normal";
 let gameMode = "single"; // single | gp
 let gp = null; // グランプリ中の状態（startGP で作る）
 let underwater = null; // カメラが水中か
-const cam = { yaw: 0, orbit: 0, focus: 0, focusTimer: 0 };
+const cam = { yaw: 0, orbit: 0, focus: 0, focusTimer: 0, roll: 0, trauma: 0, base: new THREE.Vector3() };
+
+// ---------------------------------------------------------------- 手ごたえ（画面の揺れ・フラッシュ・振動）
+// trauma は 0〜1。揺れの大きさは trauma² で、時間とともに減っていく
+function shake(amount, rumbleMs = 0) {
+  cam.trauma = Math.min(1, cam.trauma + amount);
+  if (rumbleMs) input.rumble(amount * 1.4, rumbleMs);
+}
+
+function flash() {
+  const el = $("flash");
+  el.classList.remove("hit");
+  void el.offsetWidth;
+  el.classList.add("hit");
+}
+
+function feedback(type, kart, data) {
+  const p = race.player;
+  const me = kart === p;
+  switch (type) {
+    case "hit":
+      if (me) {
+        shake(0.65, 300);
+        flash();
+      }
+      break;
+    case "wall":
+      if (me) shake(Math.min(0.45, data * 0.025), 90);
+      break;
+    case "bump":
+      if (me || data.other === p) shake(Math.min(0.3, data.rel * 0.03), 80);
+      break;
+    case "land":
+      if (me) shake(Math.min(0.4, data * 0.022), 120);
+      break;
+    case "fall":
+      if (me) shake(0.35, 200);
+      break;
+    case "rocket":
+    case "boostPad":
+    case "boostItem":
+    case "trickBoost":
+      if (me) shake(0.12, 60);
+      break;
+    case "driftBoost":
+      if (me) shake(0.06 + data * 0.05, 60);
+      break;
+    case "slam": // クラッシャーや隕石は近いほど大きく揺れる
+    case "meteor": {
+      const d = Math.hypot(data.x - p.pos.x, data.z - p.pos.z);
+      if (d < 50) shake((type === "slam" ? 0.5 : 0.6) * (1 - d / 50), 150);
+      break;
+    }
+  }
+}
 
 // ---------------------------------------------------------------- グランプリ
 // 選んだカップの 4 コースを順に走り、順位ごとのポイントの合計で最終順位を決める
@@ -240,6 +294,7 @@ function loadRace(demo) {
     demo,
     onEvent: (type, kart, data) => {
       hud.handleEvent(type, kart, data);
+      feedback(type, kart, data);
       // 結果画面の表示中も CPU は走り続けるので、ゴールしたら表を更新する
       if (type === "finish" && mode === "results" && !tally) {
         race.updateRanks(); // finish は順位の再計算より先に届く
@@ -531,15 +586,27 @@ function updateCamera(dt, snap = false) {
     cam.yaw = target.heading;
     want.set(target.pos.x - Math.sin(cam.yaw) * 7.2, target.y + 3, target.pos.z - Math.cos(cam.yaw) * 7.2);
   }
-  if (snap) camera.position.copy(want);
+  // 揺れを足す前の位置で追いかける（揺れがカメラの遅れに混ざらないように）
+  if (snap) cam.base.copy(want);
   else {
-    camera.position.x = damp(camera.position.x, want.x, 12, dt);
-    camera.position.z = damp(camera.position.z, want.z, 12, dt);
-    camera.position.y = damp(camera.position.y, want.y, 8, dt);
+    cam.base.x = damp(cam.base.x, want.x, 12, dt);
+    cam.base.z = damp(cam.base.z, want.z, 12, dt);
+    cam.base.y = damp(cam.base.y, want.y, 8, dt);
   }
   const ahead = finished ? 0 : 4;
   look.set(target.pos.x + Math.sin(cam.yaw) * ahead, target.y + 1.3, target.pos.z + Math.cos(cam.yaw) * ahead);
+
+  // 画面の揺れ：なめらかなノイズ（周波数の違う sin の和）で位置と傾きをずらす
+  cam.trauma = race.demo ? 0 : Math.max(0, cam.trauma - dt * 1.8);
+  const s = cam.trauma * cam.trauma;
+  const t = clock.elapsedTime;
+  const n = (a, b) => Math.sin(t * a) * 0.6 + Math.sin(t * b + 1.7) * 0.4;
+  camera.position.set(cam.base.x + n(41, 67) * s * 0.5, cam.base.y + n(53, 89) * s * 0.4, cam.base.z + n(37, 71) * s * 0.5);
   camera.lookAt(look);
+  // ドリフト中は曲がる側へ少しだけ傾ける
+  const lean = finished ? 0 : target.bodyYaw * 0.09;
+  cam.roll = snap ? lean : damp(cam.roll, lean, 5, dt);
+  camera.rotateZ(cam.roll + n(29, 59) * s * 0.06);
 
   const fov = 68 + clamp(target.speed / target.maxSpeed, 0, 1.3) * 6 + (target.boostTimer > 0 ? 7 : 0);
   camera.fov = snap ? fov : damp(camera.fov, fov, 4, dt);
