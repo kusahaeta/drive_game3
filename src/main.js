@@ -4,7 +4,9 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { TRACKS } from "./tracks/index.js";
-import { Race, DIFFICULTIES } from "./race.js";
+import { CUPS, CUP_RACES } from "./tracks/cups.js";
+import { Track } from "./track.js";
+import { Race, DIFFICULTIES, RACERS } from "./race.js";
 import { loadKartModel } from "./kart.js";
 import { HUD } from "./hud.js";
 import { input } from "./input.js";
@@ -56,16 +58,171 @@ addEventListener("resize", () => {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
   composer.setSize(innerWidth, innerHeight);
-  if (mode === "title" && race) drawCoursePreview($("course-map"), race.track);
+  if (mode === "title" && race) updateTitlePreview();
 });
 
 // ---------------------------------------------------------------- 状態
 let race = null;
-let mode = "title"; // title | race | paused | results
-let trackIndex = 0;
+let mode = "title"; // title | race | paused | results | gpFinal
+let trackIndex = 0; // 読み込んでいるコース
+let courseIndex = 0; // 1レースで選んでいるコース
+let cupIndex = 0; // グランプリで選んでいるカップ
 let difficulty = "normal";
+let gameMode = "single"; // single | gp
+let gp = null; // グランプリ中の状態（startGP で作る）
 let underwater = null; // カメラが水中か
 const cam = { yaw: 0, orbit: 0, focus: 0, focusTimer: 0 };
+
+// ---------------------------------------------------------------- グランプリ
+// 選んだカップの 4 コースを順に走り、順位ごとのポイントの合計で最終順位を決める
+const GP_POINTS = [15, 12, 10, 8, 6, 4, 2, 1]; // 1位〜8位
+
+function startGP() {
+  const cup = CUPS[cupIndex];
+  gp = { cup, courses: cup.courses, round: 0, points: RACERS.map(() => []) };
+  trackIndex = cup.courses[0];
+  startRace();
+}
+
+// 今のレースの順位で入るポイント（CPU が走行中でも今の順位で数える）
+function racePoints(rows) {
+  const pts = RACERS.map(() => 0);
+  for (const r of rows) pts[r.index] = GP_POINTS[r.rank - 1] ?? 0;
+  return pts;
+}
+
+// 総合順位：合計ポイントが多い順。同点なら直近のレースで上だった方
+function gpStandings(extra = null) {
+  return RACERS.map((r, i) => {
+    const pts = extra ? [...gp.points[i], extra[i]] : gp.points[i];
+    return { index: i, name: r.name, color: r.color, isPlayer: i === 0, pts, total: pts.reduce((a, b) => a + b, 0) };
+  })
+    .sort((a, b) => b.total - a.total || b.pts.at(-1) - a.pts.at(-1))
+    .map((s, i, all) => ({ ...s, rank: i > 0 && s.total === all[i - 1].total && s.pts.at(-1) === all[i - 1].pts.at(-1) ? all[i - 1].rank : i + 1 }));
+}
+
+// 1 レースの集計。全員ゴールして順位が確定してから始める
+//   count: 獲得ポイントを出して合計をカウントアップ → sort: 総合順位に並べ替え → done
+let tally = null; // 順位の確定待ちの間は null
+const TALLY_DELAY = 0.5;
+const TALLY_COUNT = 1.4;
+const TALLY_SORT_DELAY = 0.7;
+const gpTotals = () => gp.points.map((p) => p.reduce((a, b) => a + b, 0));
+
+function beginTally() {
+  const rows = race.results();
+  const prev = gpTotals();
+  // 前のレースまでの総合順位（1 戦目はなし）
+  const prevRank = gp.round > 0 ? Object.fromEntries(gpStandings().map((st) => [st.index, st.rank])) : null;
+  const pts = racePoints(rows);
+  pts.forEach((p, i) => gp.points[i].push(p)); // ポイントはここで確定
+  tally = { phase: "count", t: 0, prev, prevRank, pts, tick: -1 };
+  renderGPTable(rows, prev);
+  setResultButtons();
+}
+
+function updateTally(dt) {
+  if (!tally || tally.phase === "done") return;
+  tally.t += dt;
+  if (tally.phase === "count") {
+    const k = clamp((tally.t - TALLY_DELAY) / TALLY_COUNT, 0, 1);
+    if (tally.t >= TALLY_DELAY) showTallyPoints(k);
+    const tick = Math.floor(k * 14);
+    if (tick !== tally.tick && k > 0 && k < 1) sound.play("roulette", tick);
+    tally.tick = tick;
+    if (k >= 1) {
+      sound.play("get");
+      tally.phase = "sort";
+      tally.t = 0;
+    }
+  } else if (tally.phase === "sort" && tally.t >= TALLY_SORT_DELAY) sortGPTable();
+}
+
+// 獲得ポイントを表示し、合計を k (0〜1) の割合まで数え上げる
+function showTallyPoints(k) {
+  for (const tr of $("result-table").querySelectorAll("tr[data-index]")) {
+    const i = +tr.dataset.index;
+    const gain = tr.querySelector(".gain");
+    if (!gain.textContent) gain.textContent = `+${tally.pts[i]}`;
+    tr.querySelector(".total").textContent = tally.prev[i] + Math.round(tally.pts[i] * k);
+  }
+}
+
+// 総合順位の順に行を並べ替える（元の位置から滑らかに移動させる）
+function sortGPTable() {
+  const table = $("result-table");
+  const trs = [...table.querySelectorAll("tr[data-index]")];
+  const byIndex = new Map(trs.map((tr) => [+tr.dataset.index, tr]));
+  const before = new Map(trs.map((tr) => [tr, tr.getBoundingClientRect().top]));
+  const standings = gpStandings();
+  const parent = trs[0].parentNode;
+  standings.forEach((st) => {
+    const tr = byIndex.get(st.index);
+    parent.appendChild(tr);
+    // 前のレースまでの総合順位からの上がり下がり
+    const move = tally.prevRank ? tally.prevRank[st.index] - st.rank : 0;
+    tr.cells[0].innerHTML = `${st.rank}${move ? `<small class="move ${move > 0 ? "up" : "down"}">${move > 0 ? "▲" : "▼"}${Math.abs(move)}</small>` : ""}`;
+  });
+  table.querySelector("th").textContent = "総合";
+  for (const tr of trs) {
+    const dy = before.get(tr) - tr.getBoundingClientRect().top;
+    if (!dy) continue;
+    tr.style.transition = "none";
+    tr.style.transform = `translateY(${dy}px)`;
+    void tr.offsetWidth;
+    tr.style.transition = "";
+    tr.style.transform = "";
+  }
+  updateGPSub(standings.find((st) => st.isPlayer).rank);
+  tally.phase = "done";
+  setResultButtons();
+}
+
+// 集計を最後まで飛ばす（順位の確定待ちなら今の順位で確定する）
+function skipTally() {
+  if (!tally) beginTally();
+  if (tally.phase === "count") showTallyPoints(1);
+  if (tally.phase !== "done") sortGPTable();
+}
+
+function nextGPRace() {
+  if (tally?.phase !== "done") return skipTally();
+  tally = null;
+  gp.round++;
+  if (gp.round < gp.courses.length) {
+    trackIndex = gp.courses[gp.round];
+    startRace();
+  } else showGPFinal();
+}
+
+function showGPFinal() {
+  mode = "gpFinal";
+  trackIndex = gp.courses.at(-1);
+  loadRace(true); // 背景はデモ走行
+  const rows = gpStandings();
+  const me = rows.find((r) => r.isPlayer);
+  $("result-title").textContent = me.rank === 1 ? `${gp.cup.name}優勝!` : `総合 ${me.rank}位`;
+  $("result-sub").textContent = `${gp.cup.icon} ${gp.cup.name} 最終結果 ・ ${DIFFICULTIES[difficulty].label}`;
+  $("result-table").innerHTML =
+    `<tr><th>順位</th><th>ドライバー</th>${gp.courses.map((_, i) => `<th>R${i + 1}</th>`).join("")}<th>合計</th></tr>` +
+    rows
+      .map(
+        (r) =>
+          `<tr class="${r.isPlayer ? "me" : ""}"><td>${r.rank}</td><td><i style="background:${hexCss(r.color)}"></i>${r.name}</td>${r.pts.map((p) => `<td>${p}</td>`).join("")}<td class="total">${r.total}</td></tr>`,
+      )
+      .join("");
+  setResultButtons();
+  setScreen("result-screen");
+  sound.playMusic(me.rank <= 3 ? "assets/music/victory.mp3" : TRACKS[trackIndex].music, true);
+}
+
+function setResultButtons() {
+  const inGP = !!gp && mode === "results";
+  $("next-btn").classList.toggle("hidden", !inGP);
+  $("next-btn").firstChild.textContent =
+    inGP && tally?.phase !== "done" ? "スキップ " : inGP && gp.round === gp.courses.length - 1 ? "最終結果へ " : "次のレースへ ";
+  $("retry-btn").classList.toggle("hidden", !!gp);
+}
 
 function setScreen(name) {
   for (const id of ["title-screen", "pause-screen", "result-screen"]) $(id).classList.toggle("hidden", id !== name);
@@ -84,7 +241,7 @@ function loadRace(demo) {
     onEvent: (type, kart, data) => {
       hud.handleEvent(type, kart, data);
       // 結果画面の表示中も CPU は走り続けるので、ゴールしたら表を更新する
-      if (type === "finish" && mode === "results") {
+      if (type === "finish" && mode === "results" && !tally) {
         race.updateRanks(); // finish は順位の再計算より先に届く
         renderResultTable();
       }
@@ -106,8 +263,10 @@ function loadRace(demo) {
 
 function showTitle() {
   mode = "title";
+  gp = null;
+  trackIndex = titleTrack();
   loadRace(true);
-  updateCoursePreview();
+  updateTitlePreview();
   hud.show(false);
   setScreen("title-screen");
   sound.engine(0, false, false);
@@ -143,12 +302,22 @@ function showResults() {
   const rows = race.results();
   const me = rows.find((r) => r.isPlayer);
   $("result-title").textContent = me.rank === 1 ? "優勝!" : `${me.rank}位でフィニッシュ!`;
-  $("result-sub").textContent = `${TRACKS[trackIndex].name} ・ ${DIFFICULTIES[difficulty].label}`;
+  tally = null;
   renderResultTable(rows);
+  setResultButtons();
   setScreen("result-screen");
 }
 
 function renderResultTable(rows = race.results()) {
+  const sub = `${TRACKS[trackIndex].name} ・ ${DIFFICULTIES[difficulty].label}`;
+  if (gp) {
+    // グランプリ：全員ゴールするまではレースの順位だけ。確定したら集計を始める
+    renderGPTable(rows, gpTotals());
+    updateGPSub(gpStandings().find((st) => st.isPlayer).rank);
+    if (race.karts.every((k) => k.finished)) beginTally();
+    return;
+  }
+  $("result-sub").textContent = sub;
   $("result-table").innerHTML =
     "<tr><th>順位</th><th>ドライバー</th><th>タイム</th><th>ベストラップ</th></tr>" +
     rows
@@ -159,17 +328,58 @@ function renderResultTable(rows = race.results()) {
       .join("");
 }
 
+function renderGPTable(rows, totals) {
+  $("result-table").innerHTML =
+    "<tr><th>順位</th><th>ドライバー</th><th>タイム</th><th>獲得</th><th>合計</th></tr>" +
+    rows
+      .map(
+        (r) =>
+          `<tr data-index="${r.index}" class="${r.isPlayer ? "me" : ""}"><td>${r.rank}</td><td><i style="background:${hexCss(r.color)}"></i>${r.name}</td><td>${r.time == null ? "走行中" : timeHtml(r.time)}</td><td class="gain"></td><td class="total">${totals[r.index]}</td></tr>`,
+      )
+      .join("");
+}
+
+function updateGPSub(rank) {
+  const sub = `${TRACKS[trackIndex].name} ・ ${DIFFICULTIES[difficulty].label}`;
+  $("result-sub").textContent = `${gp.cup.name} 第${gp.round + 1}戦 / ${gp.courses.length} ・ ${sub} ・ 総合 ${rank}位`;
+}
+
 // ---------------------------------------------------------------- タイトル画面
+// タイトル画面の背景で走らせるコース（グランプリならカップの 1 コース目）
+const titleTrack = () => (gameMode === "gp" ? CUPS[cupIndex].courses[0] : courseIndex);
+
 function buildTitle() {
-  const dots = $("course-dots");
-  dots.innerHTML = "";
-  TRACKS.forEach((t, i) => {
-    const d = document.createElement("button");
-    d.className = i === trackIndex ? "selected" : "";
-    d.title = t.name;
-    d.onclick = () => selectTrack(i);
-    dots.appendChild(d);
-  });
+  const gpMode = gameMode === "gp";
+  const dots = (id, list, selected, onSelect) => {
+    const el = $(id);
+    el.innerHTML = "";
+    list.forEach((item, i) => {
+      const d = document.createElement("button");
+      d.className = i === selected ? "selected" : "";
+      d.title = item.name;
+      d.onclick = () => onSelect(i);
+      el.appendChild(d);
+    });
+  };
+  dots("course-dots", TRACKS, courseIndex, selectTrack);
+  dots("cup-dots", CUPS, cupIndex, selectCup);
+  for (const id of ["course-select", "course-dots"]) $(id).classList.toggle("hidden", gpMode);
+  for (const id of ["cup-select", "cup-dots"]) $(id).classList.toggle("hidden", !gpMode);
+  $("select-label").textContent = gpMode ? "カップ" : "コース";
+  $("start-label").textContent = gpMode ? "グランプリスタート" : "レーススタート";
+
+  const modes = $("mode-select");
+  modes.innerHTML = "";
+  for (const [key, label, note] of [
+    ["single", "1レース", "コースを選んで走る"],
+    ["gp", "グランプリ", `カップの${CUP_RACES}レースで合計ポイントを競う`],
+  ]) {
+    const b = document.createElement("button");
+    b.className = `pill${key === gameMode ? " selected" : ""}`;
+    b.innerHTML = `${label}<small>${note}</small>`;
+    b.onclick = () => setGameMode(key);
+    modes.appendChild(b);
+  }
   const diff = $("difficulty");
   diff.innerHTML = "";
   for (const [key, d] of Object.entries(DIFFICULTIES)) {
@@ -184,21 +394,58 @@ function buildTitle() {
   }
 }
 
-// コースを左右で切り替える（端まで行くと反対側へ回る）
-function selectTrack(i) {
-  const n = TRACKS.length;
-  i = ((i % n) + n) % n;
-  if (i === trackIndex) return;
-  const dir = i === (trackIndex + 1) % n ? "next" : i === (trackIndex - 1 + n) % n ? "prev" : i > trackIndex ? "next" : "prev";
-  trackIndex = i;
+function setGameMode(key) {
+  if (key === gameMode) return;
+  gameMode = key;
   buildTitle();
-  loadRace(true);
-  updateCoursePreview();
-  sound.playMusic(TRACKS[trackIndex].music);
-  const card = $("course-preview");
+  showTitleTrack();
+}
+
+// 背景のデモ走行と BGM を選択中のコースに合わせる
+function showTitleTrack() {
+  if (titleTrack() !== trackIndex) {
+    trackIndex = titleTrack();
+    loadRace(true);
+    sound.playMusic(TRACKS[trackIndex].music);
+  }
+  updateTitlePreview();
+}
+
+// 左右で切り替える（端まで行くと反対側へ回る）。選んだ番号とスライドの向きを返す
+function step(i, current, n) {
+  i = ((i % n) + n) % n;
+  const dir = i === (current + 1) % n ? "next" : i === (current - 1 + n) % n ? "prev" : i > current ? "next" : "prev";
+  return [i, dir];
+}
+
+function slideCard(id, dir) {
+  const card = $(id);
   card.classList.remove("slide-next", "slide-prev");
   void card.offsetWidth; // アニメーションを再スタート
   card.classList.add(`slide-${dir}`);
+}
+
+function selectTrack(i) {
+  const [next, dir] = step(i, courseIndex, TRACKS.length);
+  if (next === courseIndex) return;
+  courseIndex = next;
+  buildTitle();
+  showTitleTrack();
+  slideCard("course-preview", dir);
+}
+
+function selectCup(i) {
+  const [next, dir] = step(i, cupIndex, CUPS.length);
+  if (next === cupIndex) return;
+  cupIndex = next;
+  buildTitle();
+  showTitleTrack();
+  slideCard("cup-preview", dir);
+}
+
+function updateTitlePreview() {
+  if (gameMode === "gp") updateCupPreview();
+  else updateCoursePreview();
 }
 
 // 選択中のコース図（loadRace で作った Track から描く）
@@ -221,10 +468,27 @@ function updateCoursePreview() {
   drawCoursePreview($("course-map"), t);
 }
 
-$("course-prev").onclick = () => selectTrack(trackIndex - 1);
-$("course-next").onclick = () => selectTrack(trackIndex + 1);
-$("start-btn").onclick = startRace;
+// カップの 4 コースを小さなコース図で並べる（コース図用の Track は一度作ったら使い回す）
+const previewTracks = new Map();
+const previewTrack = (i) => previewTracks.get(i) ?? previewTracks.set(i, new Track(TRACKS[i])).get(i);
+
+function updateCupPreview() {
+  const cup = CUPS[cupIndex];
+  $("cup-name").textContent = `${cup.icon} ${cup.name}`;
+  $("cup-count").textContent = `${cupIndex + 1} / ${CUPS.length}`;
+  const list = $("cup-courses");
+  list.innerHTML = cup.courses.map((t, i) => `<li><canvas></canvas><span><b>${i + 1}</b> ${TRACKS[t].name}</span></li>`).join("");
+  list.querySelectorAll("canvas").forEach((c, i) => drawCoursePreview(c, previewTrack(cup.courses[i])));
+}
+
+$("course-prev").onclick = () => selectTrack(courseIndex - 1);
+$("course-next").onclick = () => selectTrack(courseIndex + 1);
+$("cup-prev").onclick = () => selectCup(cupIndex - 1);
+$("cup-next").onclick = () => selectCup(cupIndex + 1);
+const start = () => (gameMode === "gp" ? startGP() : startRace());
+$("start-btn").onclick = start;
 $("retry-btn").onclick = startRace;
+$("next-btn").onclick = nextGPRace;
 $("menu-btn").onclick = showTitle;
 $("resume-btn").onclick = togglePause;
 $("pause-retry-btn").onclick = startRace;
@@ -328,12 +592,18 @@ function frame() {
   const dt = Math.min(clock.getDelta(), 1 / 20);
 
   if (input.hit("Escape", "KeyP") && (mode === "race" || mode === "paused")) togglePause();
-  if (input.hit("KeyR") && (mode === "race" || mode === "paused" || mode === "results")) startRace();
+  // グランプリの結果画面ではやり直せない（ポイントは次へ進む時に確定する）
+  if (input.hit("KeyR") && (mode === "race" || mode === "paused" || (mode === "results" && !gp))) startRace();
   if (input.hit("KeyM")) $("mute-btn").click();
-  if (input.hit("Enter") && (mode === "title" || mode === "results")) startRace();
+  if (input.hit("Enter")) {
+    if (mode === "title") start();
+    else if (mode === "results") gp ? nextGPRace() : startRace();
+    else if (mode === "gpFinal") showTitle();
+  }
   if (mode === "title") {
-    if (input.hit("ArrowLeft", "KeyA")) selectTrack(trackIndex - 1);
-    if (input.hit("ArrowRight", "KeyD")) selectTrack(trackIndex + 1);
+    const select = gameMode === "gp" ? (d) => selectCup(cupIndex + d) : (d) => selectTrack(courseIndex + d);
+    if (input.hit("ArrowLeft", "KeyA")) select(-1);
+    if (input.hit("ArrowRight", "KeyD")) select(1);
   }
 
   if (mode !== "paused") {
@@ -341,6 +611,7 @@ function frame() {
     particles.update(dt);
     if (!window.kartGP.freeCam) updateCamera(dt);
     updateUnderwater();
+    if (mode === "results" && gp) updateTally(dt);
     if (mode === "race") {
       hud.update(race, dt);
       if (race.state === "done") showResults();

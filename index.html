@@ -44,7 +44,9 @@
       <div class="panel">
         <h1>TURBO KART <em>GP</em></h1>
         <p class="sub">8台で競う 3 ラップのカートレース</p>
-        <h2>コース <small class="hint">← → で切り替え</small></h2>
+        <h2>モード</h2>
+        <div id="mode-select"></div>
+        <h2><span id="select-label">コース</span> <small class="hint">← → で切り替え</small></h2>
         <div id="course-select">
           <button id="course-prev" class="nav" title="前のコース (←)">‹</button>
           <div id="course-preview">
@@ -63,9 +65,22 @@
           <button id="course-next" class="nav" title="次のコース (→)">›</button>
         </div>
         <div id="course-dots"></div>
+        <div id="cup-select" class="hidden">
+          <button id="cup-prev" class="nav" title="前のカップ (←)">‹</button>
+          <div id="cup-preview">
+            <div class="head">
+              <strong id="cup-name"></strong>
+              <small>4 RACES</small>
+              <span id="cup-count"></span>
+            </div>
+            <ol id="cup-courses"></ol>
+          </div>
+          <button id="cup-next" class="nav" title="次のカップ (→)">›</button>
+        </div>
+        <div id="cup-dots" class="hidden"></div>
         <h2>むずかしさ</h2>
         <div id="difficulty"></div>
-        <button id="start-btn" class="primary">レーススタート <span>Enter</span></button>
+        <button id="start-btn" class="primary"><b id="start-label">レーススタート</b> <span>Enter</span></button>
         <dl class="controls">
           <div><dt><kbd>↑</kbd><kbd>W</kbd></dt><dd>アクセル</dd></div>
           <div><dt><kbd>↓</kbd><kbd>S</kbd></dt><dd>ブレーキ・バック</dd></div>
@@ -93,6 +108,7 @@
         <p id="result-sub" class="sub"></p>
         <table id="result-table"></table>
         <div class="buttons">
+          <button id="next-btn" class="primary">次のレースへ <span>Enter</span></button>
           <button id="retry-btn" class="primary">もう一度</button>
           <button id="menu-btn">タイトルへ</button>
         </div>
