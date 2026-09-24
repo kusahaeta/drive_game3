@@ -53,6 +53,7 @@ export function buildTrackScene(track) {
   buildGapFaces(track, g, tex);
   buildRamps(track, g);
   buildTunnels(track, g, tex);
+  for (const path of track.paths) buildCastleHalls(path, g);
   buildStart(track, g);
   buildBoostPads(track, g);
   buildSigns(track, g);
@@ -213,7 +214,7 @@ function buildBattlements(path, g, tex, surf, wallAt, wallH) {
     let n = 0;
     for (let s = 1.5; s < path.length - 1.5; s += 3.2, n++) {
       const i = Math.floor(s / path.segLen) % path.count;
-      if (path.gapF[i] || path.bridgeF[i] || !wallAt(i, side)) continue;
+      if (path.gapF[i] || path.bridgeF[i] || path.tunnelF[i] || !wallAt(i, side)) continue;
       const p = path.pointAt(s, side * wo, {});
       const top = surf(wallH)(i, side * wo);
       spots.push([p.x, top + 0.45, p.z, p.heading]);
@@ -246,24 +247,30 @@ function buildBattlements(path, g, tex, surf, wallAt, wallH) {
   }
 }
 
-/** 城（scenery.castle: { x, z, size }）。石の城壁・4 本の塔・赤い屋根・光る窓 */
+/**
+ * 城（scenery.castle: { x, z, size }）。石の城壁・4 本の塔・赤い屋根・光る窓。
+ * x, z の代わりに at（周回に対する割合）を書くと、城内（features の castle）の屋根の上に本丸が建つ。
+ */
 function buildCastle(track, g, terrain) {
   const c = track.def.scenery?.castle;
   if (!c) return;
   const size = c.size ?? 1;
   const root = new THREE.Group();
-  const ground = terrain ? terrain.heightAt(c.x, c.z) : 0;
-  root.position.set(c.x, ground - 2, c.z);
-  root.rotation.y = c.rotation ?? 0;
+  const onHall = c.at != null;
+  if (onHall) {
+    // 大広間の屋根に土台の上面（高さ 14）が来るように置く
+    const p = track.pointAt(c.at * track.length, 0, {});
+    root.position.set(p.x, p.y + HALL.roof - 14 * size, p.z);
+    root.rotation.y = p.heading + (c.rotation ?? 0);
+  } else {
+    const ground = terrain ? terrain.heightAt(c.x, c.z) : 0;
+    root.position.set(c.x, ground - 2, c.z);
+    root.rotation.y = c.rotation ?? 0;
+  }
   root.scale.setScalar(size);
   g.add(root);
 
-  const stoneTex = canvasTexture(128, 128, (ctx, w, h) => {
-    ctx.fillStyle = "#5c5652";
-    ctx.fillRect(0, 0, w, h);
-    speckle(ctx, w, h, 800, ["rgba(0,0,0,0.18)", "rgba(255,255,255,0.08)"], 2);
-    drawBricks(ctx, w, h, 32, 16);
-  });
+  const stoneTex = stoneTexture();
   const stone = (rx, ry) => {
     const t = stoneTex.clone();
     t.needsUpdate = true;
@@ -280,7 +287,7 @@ function buildCastle(track, g, terrain) {
   };
 
   // 土台と本丸
-  add(new THREE.Mesh(new THREE.CylinderGeometry(70, 80, 14, 8), stone(12, 2)), 0, 7, 0);
+  if (!onHall) add(new THREE.Mesh(new THREE.CylinderGeometry(70, 80, 14, 8), stone(12, 2)), 0, 7, 0);
   add(new THREE.Mesh(new THREE.BoxGeometry(56, 40, 56), stone(8, 6)), 0, 34, 0);
   for (let k = 0; k < 4; k++) {
     // 本丸の上の胸壁
@@ -657,6 +664,45 @@ function buildRamps(track, g) {
   }
 }
 
+/**
+ * コースに沿って断面 profile（[横位置, 高さ] の列）を押し出したメッシュ。
+ * uLen を渡すと断面方向のテクスチャを長さ uLen ごとに繰り返す（省略時は断面全体で 4 回）。
+ */
+function extrudeAlong(track, profile, s0, len, mat, uLen) {
+  const steps = Math.ceil(len / 2);
+  const pos = [];
+  const uv = [];
+  const idx = [];
+  const m = profile.length;
+  const cum = [0];
+  for (let j = 1; j < m; j++) cum.push(cum[j - 1] + Math.hypot(profile[j][0] - profile[j - 1][0], profile[j][1] - profile[j - 1][1]));
+  const p = {};
+  for (let k = 0; k <= steps; k++) {
+    const s = s0 + (k / steps) * len;
+    track.pointAt(s, 0, p);
+    const nx = Math.cos(p.heading);
+    const nz = -Math.sin(p.heading);
+    profile.forEach(([lat, h], j) => {
+      pos.push(p.x + nx * lat, p.y + h, p.z + nz * lat);
+      uv.push(uLen ? cum[j] / uLen : (j / (m - 1)) * 4, (s - s0) / (uLen ?? 8));
+    });
+    if (k < steps) {
+      for (let j = 0; j < m - 1; j++) {
+        const a = k * m + j;
+        idx.push(a, a + m, a + 1, a + 1, a + m, a + m + 1);
+      }
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = mesh.receiveShadow = true;
+  return mesh;
+}
+
 /** トンネル：内側のアーチ・外側の岩山・入口の面・照明 */
 function buildTunnels(track, g, tex) {
   const wo = track.wallOffset;
@@ -675,37 +721,7 @@ function buildTunnels(track, g, tex) {
   const lampMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffe2a0).multiplyScalar(4) });
   const p = {};
 
-  const extrude = (profile, s0, len, mat) => {
-    const steps = Math.ceil(len / 2);
-    const pos = [];
-    const uv = [];
-    const idx = [];
-    const m = profile.length;
-    for (let k = 0; k <= steps; k++) {
-      const s = s0 + (k / steps) * len;
-      track.pointAt(s, 0, p);
-      const nx = Math.cos(p.heading);
-      const nz = -Math.sin(p.heading);
-      profile.forEach(([lat, h], j) => {
-        pos.push(p.x + nx * lat, p.y + h, p.z + nz * lat);
-        uv.push(j / (m - 1) * 4, (s - s0) / 8);
-      });
-      if (k < steps) {
-        for (let j = 0; j < m - 1; j++) {
-          const a = k * m + j;
-          idx.push(a, a + m, a + 1, a + 1, a + m, a + m + 1);
-        }
-      }
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-    geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
-    geo.setIndex(idx);
-    geo.computeVertexNormals();
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.castShadow = mesh.receiveShadow = true;
-    return mesh;
-  };
+  const extrude = (profile, s0, len, mat) => extrudeAlong(track, profile, s0, len, mat);
 
   for (const t of track.tunnels) {
     g.add(extrude(arch, t.s0, t.len, innerMat));
@@ -740,6 +756,280 @@ function buildTunnels(track, g, tex) {
         lamp.rotation.y = p.heading;
         g.add(lamp);
       }
+    }
+  }
+}
+
+/** 城内の大広間の寸法（壁の高さ・天井のアーチの高さ・外側の屋根の高さ・外壁までの横幅） */
+const HALL = { wall: 12, vault: 6, roof: 22, half: 30 };
+
+function stoneTexture(base = "#5c5652") {
+  return canvasTexture(128, 128, (ctx, w, h) => {
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, w, h);
+    speckle(ctx, w, h, 800, ["rgba(0,0,0,0.18)", "rgba(255,255,255,0.08)"], 2);
+    drawBricks(ctx, w, h, 32, 16);
+  });
+}
+
+/**
+ * 城内（features の castle、枝道の castle）：城の大広間の中を走る。
+ * 中はアーチ天井・柱・松明・垂れ幕・シャンデリア・赤じゅうたん・壁ぎわの溶岩の溝、
+ * 外は胸壁のある城壁と光る窓、出入口には門の塔と上げた落とし格子。
+ * 城内が 2 本並ぶときは外壁が重なるので、ほかの大広間に埋まる所には窓・胸壁・塔を置かない。
+ */
+function buildCastleHalls(track, g) {
+  if (!track.castles?.length) return;
+  const main = track.main ?? track;
+  const wo = track.wallOffset;
+  const iw = wo + 0.3; // 内壁は道の柵の少し外（柵が腰壁に見える）
+  const W = HALL.half;
+  const top = HALL.wall + HALL.vault;
+  const inner = [[iw, -0.5]];
+  for (let k = 0; k <= 14; k++) {
+    const a = (k / 14) * Math.PI;
+    inner.push([Math.cos(a) * iw, HALL.wall + Math.sin(a) * HALL.vault]);
+  }
+  inner.push([-iw, -0.5]);
+  const outer = [[W, -14], [W, HALL.roof], [-W, HALL.roof], [-W, -14]];
+  const vaultAt = (lat) => HALL.wall + Math.sqrt(Math.max(0, 1 - (lat / iw) ** 2)) * HALL.vault;
+  const inHall = (path, s) =>
+    path.castles.some((c) => {
+      const d = path.closed ? path.wrapS(s - c.s0) : s - c.s0;
+      return d >= 0 && d <= c.len;
+    });
+  const q = {};
+  const covered = (x, z) =>
+    main.paths.some((o) => {
+      if (o === track || !o.castles?.length) return false;
+      o.project(x, z, null, q);
+      return Math.abs(q.lateral) < W + 1 && inHall(o, q.s);
+    });
+
+  const innerMat = new THREE.MeshLambertMaterial({ map: stoneTexture("#6a5a52"), side: THREE.DoubleSide, emissive: 0x2a1208 });
+  const outerMat = new THREE.MeshLambertMaterial({ map: stoneTexture(), side: THREE.DoubleSide });
+  const pillarMat = new THREE.MeshLambertMaterial({ map: stoneTexture("#7a6c64"), emissive: 0x24100a });
+  const ironMat = new THREE.MeshLambertMaterial({ color: 0x2a2624 });
+  const roofMat = new THREE.MeshLambertMaterial({ color: 0x8a1a1a });
+  const winMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffa23a).multiplyScalar(2.5), side: THREE.DoubleSide });
+  const flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff9a2a).multiplyScalar(3.5) });
+  const bannerMat = new THREE.MeshLambertMaterial({
+    side: THREE.DoubleSide,
+    emissive: 0x3a0806,
+    map: canvasTexture(64, 128, (ctx, w, h) => {
+      ctx.fillStyle = "#9a1414";
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = "#e6a21a";
+      ctx.fillRect(0, 0, w, 6);
+      ctx.fillRect(4, 0, 4, h);
+      ctx.fillRect(w - 8, 0, 4, h);
+      // 下の端はギザギザ
+      ctx.clearRect(0, h - 12, w, 12);
+      ctx.fillStyle = "#9a1414";
+      for (let x = 0; x < w; x += 16) {
+        ctx.beginPath();
+        ctx.moveTo(x, h - 12);
+        ctx.lineTo(x + 16, h - 12);
+        ctx.lineTo(x + 8, h);
+        ctx.fill();
+      }
+      // 角の生えた紋章
+      ctx.fillStyle = "#e6a21a";
+      ctx.beginPath();
+      ctx.arc(w / 2, 56, 15, 0, Math.PI * 2);
+      ctx.fill();
+      for (const d of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(w / 2 + d * 8, 46);
+        ctx.lineTo(w / 2 + d * 18, 26);
+        ctx.lineTo(w / 2 + d * 14, 50);
+        ctx.fill();
+      }
+      ctx.fillStyle = "#3a0a0a";
+      for (const d of [-1, 1]) ctx.fillRect(w / 2 + d * 6 - 2, 52, 4, 5);
+      ctx.fillRect(w / 2 - 6, 62, 12, 3);
+    }, false),
+    transparent: true,
+    alphaTest: 0.5,
+  });
+  const carpetMat = new THREE.MeshLambertMaterial({
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -2,
+    map: canvasTexture(64, 128, (ctx, w, h) => {
+      ctx.fillStyle = "#8e1212";
+      ctx.fillRect(0, 0, w, h);
+      speckle(ctx, w, h, 500, ["rgba(0,0,0,0.12)", "rgba(255,120,120,0.08)"], 2);
+      ctx.fillStyle = "#e0a020";
+      ctx.fillRect(3, 0, 4, h);
+      ctx.fillRect(w - 7, 0, 4, h);
+    }),
+  });
+  const lavaTex = canvasTexture(64, 256, (ctx, w, h) => {
+    ctx.fillStyle = "#ff5a0a";
+    ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 70; i++) {
+      ctx.fillStyle = i % 3 ? "rgba(255,210,60,0.55)" : "rgba(120,20,0,0.5)";
+      ctx.beginPath();
+      ctx.ellipse(Math.random() * w, Math.random() * h, 4 + Math.random() * 10, 8 + Math.random() * 20, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+  const lavaMat = new THREE.MeshBasicMaterial({ map: lavaTex, color: new THREE.Color(1, 1, 1).multiplyScalar(1.6) });
+  main.scrolling ??= [];
+  main.scrolling.push({ tex: lavaTex, speed: 0.15 });
+  main.torches ??= [];
+
+  // じゅうたんと溶岩の溝（道のサンプル単位で城内だけ描く）
+  const inside = new Uint8Array(track.count);
+  for (let i = 0; i < track.count; i++) inside[i] = inHall(track, i * track.segLen) ? 1 : 0;
+  // 枝道はメインコースと重なってもちらつかないよう少し持ち上げてある（buildRoad の lift）ので合わせる
+  const lift = track.main ? 0.03 : 0;
+  const surf = (d) => (i, off) => track.py[i] + track.bank[i] * off + d + lift;
+  const floor = (i) => inside[i] && !track.gapF[i];
+  g.add(ribbon(track, 3.2, -3.2, surf(0.06), surf(0.06), 6, carpetMat, floor));
+  for (const side of [1, -1]) {
+    const a = side * (wo - 0.15);
+    const b = side * (wo - 1.5);
+    g.add(ribbon(track, Math.max(a, b), Math.min(a, b), surf(0.08), surf(0.08), 10, lavaMat, floor));
+  }
+
+  // クラッシャーの真上にはシャンデリアを吊らない
+  const crusherS = (main.def.hazards ?? []).filter((h) => h.type === "crusher" && (h.branch ?? 0) === track.id).map((h) => h.at * track.length);
+  const nearCrusher = (s) => crusherS.some((c) => Math.abs(track.deltaS(c, s)) < 12);
+
+  const p = {};
+  const place = (mesh, s, lat, y, rot = 0) => {
+    track.pointAt(s, lat, p);
+    mesh.position.set(p.x, p.y + y, p.z);
+    mesh.rotation.y = p.heading + rot;
+    g.add(mesh);
+    return mesh;
+  };
+  const pillarGeo = new THREE.BoxGeometry(1.8, HALL.wall + 0.5, 1.8);
+  const capGeo = new THREE.BoxGeometry(2.6, 0.9, 2.6);
+  const bannerGeo = new THREE.PlaneGeometry(3.4, 7);
+  const winGeo = new THREE.PlaneGeometry(2.2, 3.6);
+  const merlonGeo = new THREE.BoxGeometry(1.4, 1.4, 2);
+
+  for (const c of track.castles) {
+    g.add(extrudeAlong(track, inner, c.s0, c.len, innerMat, 8));
+    g.add(extrudeAlong(track, outer, c.s0, c.len, outerMat, 8));
+
+    // 柱と松明、柱のあいだの垂れ幕
+    let n = 0;
+    for (let d = 7; d < c.len - 4; d += 14, n++) {
+      const s = c.s0 + d;
+      for (const side of [1, -1]) {
+        place(new THREE.Mesh(pillarGeo, pillarMat), s, side * iw, HALL.wall / 2 - 0.25).castShadow = true;
+        place(new THREE.Mesh(capGeo, pillarMat), s, side * (iw - 0.2), HALL.wall);
+        if (n % 2 === 0) {
+          place(new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 1.2), ironMat), s, side * (iw - 1.4), 5.4, Math.PI / 2);
+          const flame = place(new THREE.Mesh(new THREE.ConeGeometry(0.4, 1.1, 8), flameMat), s, side * (iw - 1.9), 6.2);
+          main.torches.push(flame);
+        }
+        if (d + 7 < c.len - 4) place(new THREE.Mesh(bannerGeo, bannerMat), s + 7, side * (iw - 0.1), 6.4, Math.PI / 2);
+      }
+    }
+
+    // シャンデリア（天井から鎖で吊った鉄の輪とろうそくの火）
+    for (let d = 22; d < c.len - 10; d += 44) {
+      const s = c.s0 + d;
+      if (nearCrusher(s)) continue;
+      track.pointAt(s, 0, p);
+      const y = p.y + top - 5.5;
+      const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 5.5, 4), ironMat);
+      chain.position.set(p.x, y + 2.75, p.z);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.15, 6, 24), ironMat);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(p.x, y, p.z);
+      g.add(chain, ring);
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        const flame = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.7, 6), flameMat);
+        flame.position.set(p.x + Math.cos(a) * 2.4, y + 0.45, p.z + Math.sin(a) * 2.4);
+        g.add(flame);
+        main.torches.push(flame);
+      }
+    }
+
+    // 外壁：光る窓と屋根のふちの胸壁
+    for (let d = 10; d < c.len - 6; d += 16) {
+      for (const side of [1, -1]) {
+        track.pointAt(c.s0 + d, side * (W + 0.05), p);
+        if (!covered(p.x, p.z)) place(new THREE.Mesh(winGeo, winMat), c.s0 + d, side * (W + 0.05), HALL.roof - 8, (side * Math.PI) / 2);
+      }
+    }
+    const spots = [];
+    for (let d = 1; d < c.len; d += 3.4) for (const side of [1, -1]) spots.push([c.s0 + d, side * (W - 0.7)]);
+    for (let l = -W + 3.4; l <= W - 3.4; l += 3.4) spots.push([c.s0 + 0.7, l], [c.s0 + c.len - 0.7, l]);
+    const kept = spots.filter(([s, lat]) => {
+      track.pointAt(s, lat, p);
+      return !covered(p.x, p.z);
+    });
+    spots.length = 0;
+    spots.push(...kept);
+    const merlons = new THREE.InstancedMesh(merlonGeo, outerMat, spots.length);
+    const m4 = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const up = new THREE.Vector3(0, 1, 0);
+    const one = new THREE.Vector3(1, 1, 1);
+    spots.forEach(([s, lat], k) => {
+      track.pointAt(s, lat, p);
+      q.setFromAxisAngle(up, p.heading);
+      merlons.setMatrixAt(k, m4.compose(new THREE.Vector3(p.x, p.y + HALL.roof + 0.7, p.z), q, one));
+    });
+    merlons.castShadow = merlons.receiveShadow = true;
+    g.add(merlons);
+
+    // 出入口：アーチ穴のあいた壁面・門の塔・上げた落とし格子
+    for (const [s, dir] of [[c.s0, -1], [c.s0 + c.len, 1]]) {
+      track.pointAt(s, 0, p);
+      const shape = new THREE.Shape(outer.map(([l, h]) => new THREE.Vector2(l, h)));
+      shape.holes.push(new THREE.Path(inner.map(([l, h]) => new THREE.Vector2(l, h))));
+      const faceGeo = new THREE.ShapeGeometry(shape);
+      const fuv = faceGeo.attributes.uv;
+      for (let k = 0; k < fuv.count; k++) fuv.setXY(k, fuv.getX(k) / 8, fuv.getY(k) / 8);
+      const face = new THREE.Mesh(faceGeo, outerMat);
+      face.position.set(p.x, p.y, p.z);
+      face.rotation.y = p.heading;
+      g.add(face);
+
+      for (const side of [1, -1]) {
+        track.pointAt(s, side * W, p);
+        if (covered(p.x, p.z)) continue;
+        const towerH = HALL.roof + 26;
+        const tower = place(new THREE.Mesh(new THREE.CylinderGeometry(7, 7.5, towerH, 16), outerMat), s, side * W, towerH / 2 - 12);
+        tower.castShadow = tower.receiveShadow = true;
+        place(new THREE.Mesh(new THREE.ConeGeometry(9.5, 16, 16), roofMat), s, side * W, towerH - 12 + 8).castShadow = true;
+        for (let k = 0; k < 4; k++) {
+          const a = (k / 4) * Math.PI * 2 + 0.4;
+          track.pointAt(s, side * W, p);
+          const win = new THREE.Mesh(winGeo, winMat);
+          win.position.set(p.x + Math.cos(a) * 7.3, p.y + towerH - 20, p.z + Math.sin(a) * 7.3);
+          win.rotation.y = Math.PI / 2 - a;
+          g.add(win);
+        }
+      }
+      // 落とし格子：アーチの上のほうに鉄の格子が引き上げられている
+      const gate = new THREE.Group();
+      for (let l = -iw + 1.2; l < iw - 0.6; l += 1.6) {
+        const h = vaultAt(l) - (HALL.wall - 1);
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(0.28, h, 0.28), ironMat);
+        bar.position.set(l, HALL.wall - 1 + h / 2, 0);
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.8, 4), ironMat);
+        spike.rotation.x = Math.PI;
+        spike.position.set(l, HALL.wall - 1.4, 0);
+        gate.add(bar, spike);
+      }
+      for (const y of [HALL.wall - 0.6, HALL.wall + 2]) {
+        const w = 2 * Math.sqrt(Math.max(0, 1 - ((y - HALL.wall) / HALL.vault) ** 2)) * iw;
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(y < HALL.wall ? iw * 2 : w, 0.3, 0.3), ironMat);
+        rail.position.set(0, y, 0);
+        gate.add(rail);
+      }
+      place(gate, s + dir * 1.2, 0, 0);
     }
   }
 }

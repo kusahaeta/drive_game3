@@ -7,7 +7,7 @@ import { clamp, lerp, wrapAngle } from "./utils.js";
  * カート・NPC・アイテムはどちらの道にいても同じように扱える。
  * s は枝道の始点からの距離（0〜length）。範囲外の s はメインコースへつながる位置として扱う。
  *
- * コース定義：branches: [{ from, to, points: [[x, y, z], ...], width, noWalls, elevated, itemBoxRows, boostPads, aiChance }]
+ * コース定義：branches: [{ from, to, points: [[x, y, z], ...], width, noWalls, elevated, itemBoxRows, boostPads, aiChance, castle }]
  */
 export class Branch {
   constructor(main, def, id) {
@@ -85,6 +85,15 @@ export class Branch {
     this.mergeLen = merge.len;
     this.mergeSide = merge.side;
     this.mergeMainStart = merge.mainS;
+
+    // 城内（castle: { from, to } は枝道の長さに対する割合）。屋根のある区間としてトンネルと同じに扱う
+    this.castles = def.castle ? [{ s0: def.castle.from * this.length, len: (def.castle.to - def.castle.from) * this.length }] : [];
+    for (const c of this.castles) {
+      for (let i = 0; i < N; i++) {
+        const s = i * this.segLen;
+        if (s >= c.s0 && s <= c.s0 + c.len) this.tunnelF[i] = 1;
+      }
+    }
 
     const pads = def.boostPads ?? [];
     this.boostPads = pads.map((d) => ({ s: d.at * this.length, lateral: d.lateral ?? 0, length: d.length ?? 6, width: d.width ?? 4.5 }));
