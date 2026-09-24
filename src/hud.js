@@ -4,6 +4,7 @@ import { formatTime, hexCss, timeHtml } from "./utils.js";
 
 const $ = (id) => document.getElementById(id);
 const ITEM_KEYS = Object.keys(ITEMS);
+const MAP_COLORS = { banana: "#ffd93b", fake: "#ff5f8a", shell: "#2ec27e", homing: "#e63946", spiny: "#2f6bff", bomb: "#222" };
 
 export class HUD {
   constructor() {
@@ -21,6 +22,7 @@ export class HUD {
       toast: $("toast"),
       countdown: $("countdown"),
       warn: $("wrong-way"),
+      ink: $("ink"),
     };
     this.map = $("minimap");
     this.ctx = this.map.getContext("2d");
@@ -115,6 +117,22 @@ export class HUD {
         if (me) this.toast("スピン!", "bad", 1);
         else if (data?.by === race.player) this.toast(`${kart.name} にヒット!`, "good", 1.2);
         break;
+      case "star":
+        if (me) this.toast("無敵!", "good", 1.2);
+        break;
+      case "bullet":
+        if (me) this.toast("ジェット!", "good", 1.2);
+        break;
+      case "lightning":
+        if (me) this.toast("サンダー!", "good", 1.2);
+        else if (race.player.shrinkTimer > 0) this.toast(`${kart.name} のサンダー!`, "bad", 1.4);
+        break;
+      case "ink":
+        if (!me && race.player.inkTimer > 0) this.toast(`${kart.name} のスミ!`, "bad", 1.4);
+        break;
+      case "spiny":
+        if (data === race.player) this.toast("トップシェルが来る!", "bad", 2);
+        break;
     }
   }
 
@@ -143,7 +161,8 @@ export class HUD {
     } else if (p.item) {
       el.item.textContent = ITEMS[p.item].icon;
       el.item.className = "ready";
-      el.itemCount.textContent = p.itemUses > 1 ? `×${p.itemUses}` : ITEMS[p.item].name;
+      if (p.item === "gold" && p.goldTimer > 0) el.itemCount.textContent = `残り ${Math.ceil(p.goldTimer)} 秒`;
+      else el.itemCount.textContent = p.itemUses > 1 && Number.isFinite(p.itemUses) ? `×${p.itemUses}` : ITEMS[p.item].name;
     } else {
       el.item.textContent = "";
       el.item.className = "";
@@ -180,6 +199,8 @@ export class HUD {
     }
 
     el.warn.classList.toggle("show", p.wrongWayTime > 1);
+    // スミ：切れる直前に薄くなっていく
+    el.ink.style.opacity = Math.min(1, p.inkTimer / 1.2);
     if (this.toastTimer > 0 && (this.toastTimer -= dt) <= 0) el.toast.className = "";
 
     this.drawMap(race);
@@ -203,9 +224,11 @@ export class HUD {
     ctx.fillRect(sx - 5, sy - 2, 10, 4);
 
     for (const o of race.items.objects) {
+      if (!MAP_COLORS[o.type]) continue;
       const [x, y] = this.toMap(o.x, o.z);
-      ctx.fillStyle = o.type === "banana" ? "#ffd93b" : o.type === "homing" ? "#e63946" : "#2ec27e";
-      ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
+      const r = o.type === "spiny" ? 3 : 1.5;
+      ctx.fillStyle = MAP_COLORS[o.type];
+      ctx.fillRect(x - r, y - r, r * 2, r * 2);
     }
     const karts = [...race.karts].sort((a, b) => (a.isPlayer ? 1 : 0) - (b.isPlayer ? 1 : 0));
     for (const k of karts) {

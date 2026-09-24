@@ -55,6 +55,26 @@ body.boosting #speed-lines {
 #flash.hit {
   animation: flash 0.6s ease-out;
 }
+/* サンダー：画面全体が白く光る */
+#flash.zap {
+  background: rgba(255, 255, 235, 0.85);
+  animation: flash 0.5s ease-out;
+}
+/* スミをかけられたときの黒いしみ */
+#ink {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(circle at 30% 42%, #0b0b12 0 11%, transparent 11.5%),
+    radial-gradient(circle at 62% 55%, #0b0b12 0 14%, transparent 14.5%),
+    radial-gradient(circle at 48% 30%, #0b0b12 0 7%, transparent 7.5%),
+    radial-gradient(circle at 75% 36%, #0b0b12 0 6%, transparent 6.5%),
+    radial-gradient(circle at 22% 66%, #0b0b12 0 8%, transparent 8.5%),
+    radial-gradient(circle at 44% 70%, #0b0b12 0 6%, transparent 6.5%),
+    radial-gradient(circle at 84% 64%, #0b0b12 0 5%, transparent 5.5%);
+}
 @keyframes flash {
   from {
     opacity: 1;

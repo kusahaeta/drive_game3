@@ -167,6 +167,28 @@ class Sound {
         return this.tone(160, 0.5, { type: "sawtooth", slide: -100, vol: 0.12 });
       case "splash":
         return this.noise(0.45, 0.18, 1500);
+      case "explode":
+        this.noise(0.7, 0.4, 500);
+        return this.tone(130, 0.6, { type: "sine", slide: -90, vol: 0.28 });
+      case "thunder":
+        this.noise(0.9, 0.35, 3000);
+        this.tone(1800, 0.25, { type: "sawtooth", slide: -1600, vol: 0.1 });
+        return this.noise(0.8, 0.3, 180);
+      case "star":
+        [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => this.tone(f, 0.1, { type: "square", vol: 0.08, delay: i * 0.07 }));
+        return;
+      case "bullet":
+        this.tone(110, 0.9, { type: "sawtooth", slide: 260, vol: 0.14 });
+        return this.noise(0.8, 0.2, 900);
+      case "horn":
+        this.tone(233, 0.55, { type: "sawtooth", vol: 0.12 });
+        return this.tone(349, 0.55, { type: "sawtooth", vol: 0.1 });
+      case "ink":
+        this.noise(0.25, 0.2, 350);
+        return this.tone(320, 0.35, { type: "sine", slide: -220, vol: 0.14 });
+      case "spiny":
+        [1320, 990, 1320, 990].forEach((f, i) => this.tone(f, 0.1, { type: "square", vol: 0.08, delay: i * 0.12 }));
+        return;
       case "bump":
         return this.noise(0.1, 0.15, 600);
       case "lap":

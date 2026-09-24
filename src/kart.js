@@ -227,6 +227,12 @@ export class Kart {
     this.boostTimer = 0;
     this.boostColor = BOOST_COLOR;
     this.spinTimer = 0;
+    this.starTimer = 0; // スター：無敵で少し速い
+    this.shrinkTimer = 0; // サンダーで小さくなっている
+    this.bulletTimer = 0; // ジェット：コースに沿って自動で突き進む
+    this.goldTimer = 0; // ゴールドダッシュの残り時間
+    this.inkTimer = 0; // スミで前が見えない
+    this.size = 1;
     this.stall = 0;
     this.invuln = 0;
     this.drifting = false;
@@ -270,9 +276,9 @@ export class Kart {
     this.syncMesh(0, 0);
   }
 
-  /** アイテムが当たった。無敵中なら false */
-  hit() {
-    if (this.invuln > 0) return false;
+  /** アイテムが当たった。無敵中なら false（force はサンダー：被弾後の無敵時間でも当たる） */
+  hit(force = false) {
+    if ((this.invuln > 0 && !force) || this.starTimer > 0 || this.bulletTimer > 0) return false;
     this.spinTimer = SPIN_TIME;
     this.speed *= 0.3;
     this.drifting = false;
@@ -319,6 +325,10 @@ export class Kart {
     this.boostTimer = Math.max(0, this.boostTimer - dt);
     this.invuln = Math.max(0, this.invuln - dt);
     this.stall = Math.max(0, this.stall - dt);
+    this.starTimer = Math.max(0, this.starTimer - dt);
+    this.shrinkTimer = Math.max(0, this.shrinkTimer - dt);
+    this.inkTimer = Math.max(0, this.inkTimer - dt);
+    const star = this.starTimer > 0;
     const spinning = this.spinTimer > 0;
     if (spinning) this.spinTimer -= dt;
 
@@ -335,13 +345,15 @@ export class Kart {
     const path = this.path ?? track;
     this.offroad = Math.abs(this.proj.lateral) > path.halfWidth + 0.8;
     let top = this.maxSpeed * this.speedMult;
-    if (this.offroad && this.boostTimer <= 0) top *= 0.52;
+    if (this.offroad && this.boostTimer <= 0 && !star) top *= 0.52;
     // 海に沈んだ道では水の抵抗で少し遅くなる
     const wasInWater = this.inWater;
     this.inWater = track.shallows?.length > 0 && !this.airborne && this.proj.groundY < track.theme.waterLevel - 0.05;
     if (this.inWater !== wasInWater && Math.abs(this.speed) > 4) race.emit("splash", this);
-    if (this.inWater && this.boostTimer <= 0) top *= 0.84;
+    if (this.inWater && this.boostTimer <= 0 && !star) top *= 0.84;
     if (this.boostTimer > 0) top += 11;
+    if (star) top += 5;
+    if (this.shrinkTimer > 0) top *= 0.72;
 
     const flying = this.airborne && this.launched;
     if (flying) this.speed *= 1 - 0.04 * dt;
@@ -355,7 +367,7 @@ export class Kart {
       else this.speed = Math.max(-this.reverseMax, this.speed - this.accel * 0.7 * dt);
     } else if (throttle && brake) this.speed = damp(this.speed, 0, 1.8, dt);
     else this.speed = damp(this.speed, 0, 0.55, dt);
-    if (this.boostTimer > 0 && !spinning && !flying) this.speed = Math.min(top, this.speed + 40 * dt);
+    if ((this.boostTimer > 0 || star) && !spinning && !flying) this.speed = Math.min(top, this.speed + 40 * dt);
 
     // --- ジャンプ＆ドリフト
     const driftEdge = c.drift && !this.prevDrift;
@@ -527,6 +539,9 @@ export class Kart {
         m.flameMat.color.set(this.boostColor).multiplyScalar(5);
       }
     }
+    // サンダーで小さくなる
+    this.size = damp(this.size, this.shrinkTimer > 0 ? 0.55 : 1, 6, dt);
+    this.mesh.scale.setScalar(this.size);
     // スピン後の無敵時間は点滅
     this.mesh.visible = !(this.invuln > 0 && this.spinTimer <= 0 && Math.floor(this.invuln * 14) % 2 === 0);
   }
