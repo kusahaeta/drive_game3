@@ -47,7 +47,16 @@ export class HUD {
     this.toastTimer = 0;
 
     const t = race.track;
-    const { minX, maxX, minZ, maxZ } = t.bounds;
+    let { minX, maxX, minZ, maxZ } = t.bounds;
+    // 枝道がメインコースの外側を通るときも収まるように広げる
+    for (const b of t.branches ?? []) {
+      for (let i = 0; i < b.count; i++) {
+        minX = Math.min(minX, b.px[i]);
+        maxX = Math.max(maxX, b.px[i]);
+        minZ = Math.min(minZ, b.pz[i]);
+        maxZ = Math.max(maxZ, b.pz[i]);
+      }
+    }
     const size = this.map.width;
     const pad = 16;
     const scale = (size - pad * 2) / Math.max(maxX - minX, maxZ - minZ);
