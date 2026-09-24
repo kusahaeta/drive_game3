@@ -266,8 +266,10 @@ export class Race {
         const nx = dx / d;
         const nz = dz / d;
         // スター・ジェット側は押し返されず減速もしない。相手だけをはじき飛ばす
-        if (strong(a) !== strong(b)) {
-          const weak = strong(a) ? b : a;
+        // スピン中のカートも同じように押しのけられるだけ（スピンさせた相手にぶつかって減速しない）
+        const weight = (k) => (strong(k) ? 2 : k.spinTimer > 0 ? 0 : 1);
+        if (weight(a) !== weight(b)) {
+          const weak = weight(a) > weight(b) ? b : a;
           const s = weak === b ? 1 : -1;
           weak.pos.x += nx * s * (R - d);
           weak.pos.z += nz * s * (R - d);

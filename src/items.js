@@ -691,17 +691,20 @@ export class ItemSystem {
     }
 
     // まわりを回っているシェル・バナナは、ぶつかった相手をスピンさせる
+    // 同じ相手には少しの間当たらない（隣の 1 個が続けて当たって一度に何個も減るのを防ぐ）
     for (const [k, list] of this.held) {
       if (!list.length) continue;
+      const recent = (list.recent ??= new Map());
       hitCheck: for (const m of list) {
         for (const q of race.karts) {
-          if (q === k || q.respawnTimer > 0) continue;
+          if (q === k || q.respawnTimer > 0 || recent.get(q) > race.clock) continue;
           const dx = q.pos.x - m.position.x;
           const dz = q.pos.z - m.position.z;
           const rr = 0.6 + KART_RADIUS;
           if (dx * dx + dz * dz > rr * rr || Math.abs(q.y - k.y) > 2.5) continue;
           if (q.hit()) race.emit("hit", q, { by: k, type: list.type });
           this.consumeHeld(k);
+          recent.set(q, race.clock + 1);
           race.burst(m.position.x, m.position.y, m.position.z, [0xffffff, 0xffd93b], 10, 5);
           break hitCheck;
         }
