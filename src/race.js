@@ -247,7 +247,7 @@ export class Race {
           b.speed -= Math.sign(b.speed) * rel * 0.3;
           a.speed += rel * 0.2;
         }
-        if (rel > 3 && (a === this.player || b === this.player)) this.sound.play("bump");
+        if (rel > 3) this.emit("bump", a, { other: b, rel, x: (a.pos.x + b.pos.x) / 2, y: (a.y + b.y) / 2, z: (a.pos.z + b.pos.z) / 2 });
       }
     }
   }
@@ -353,10 +353,23 @@ export class Race {
     }
   }
 
+  // こすれた所から (nx, nz) 側と進行方向の後ろへ飛ぶ火花
+  sparks(x, y, z, nx, nz, count, kart) {
+    const bx = -Math.sin(kart.moveAngle) * kart.speed * 0.25;
+    const bz = -Math.cos(kart.moveAngle) * kart.speed * 0.25;
+    for (let i = 0; i < count; i++) {
+      const side = (Math.random() < 0.5 ? 1 : -1) * (1 + Math.random() * 3);
+      const out = 1 + Math.random() * 4;
+      const col = i % 3 === 0 ? 0xffffff : i % 3 === 1 ? 0xffd23f : 0xff8a2a;
+      this.particles.spawn(x, y, z, nx * out + nz * side + bx, 2 + Math.random() * 4, nz * out - nx * side + bz, col, 0.2 + Math.random() * 0.25);
+    }
+  }
+
   emit(type, kart, data) {
     // 敵（クラッシャー・隕石）の効果音は位置 data で近さを判定
     if (!kart) {
       if (!this.demo && data && Math.hypot(data.x - this.player.pos.x, data.z - this.player.pos.z) < 60) this.sound.play(type);
+      if (!this.demo) this.onEvent(type, kart, data);
       return;
     }
     const isPlayer = kart === this.player && !this.demo;
@@ -376,7 +389,17 @@ export class Race {
         break;
       case "wall":
         if (isPlayer) this.sound.play("wall", data);
+        if (isPlayer || near) this.sparks(kart.pos.x + kart.wallNx * 0.9, kart.y + 0.4, kart.pos.z + kart.wallNz * 0.9, -kart.wallNx, -kart.wallNz, Math.min(18, data * 1.2), kart);
         break;
+      case "bump": {
+        const o = data.other;
+        if (isPlayer || o === this.player) this.sound.play("bump");
+        if (isPlayer || near) {
+          const d = Math.hypot(o.pos.x - kart.pos.x, o.pos.z - kart.pos.z) || 1;
+          this.sparks(data.x, data.y + 0.5, data.z, (o.pos.z - kart.pos.z) / d, -(o.pos.x - kart.pos.x) / d, Math.min(10, data.rel * 1.5), kart);
+        }
+        break;
+      }
       case "trick":
         if (isPlayer) this.sound.play("trick");
         break;

@@ -247,6 +247,9 @@ export class Kart {
     this.trickSpin = 0;
     this.respawnTimer = 0;
     this.respawned = false;
+    // 車体の伸び縮み（着地でつぶれ、ダッシュで伸びるばね）
+    this.squash = 0;
+    this.squashV = 0;
   }
 
   /** path（メインコースか枝道）の s 地点に置く */
@@ -285,6 +288,7 @@ export class Kart {
 
   /** color はドリフトの溜め段階の色（炎と噴射パーティクルに使う） */
   giveBoost(t, color = BOOST_COLOR) {
+    if (this.boostTimer <= 0) this.squashV += 2.2; // ダッシュの出だしで車体がぐっと伸びる
     this.boostTimer = Math.max(this.boostTimer, t);
     this.boostColor = color;
   }
@@ -432,7 +436,11 @@ export class Kart {
           this.moveAngle = this.heading = Math.atan2(-vx, -vz);
           this.speed = -v;
         }
-        if (vn > 5) race.emit("wall", this, vn);
+        if (vn > 5) {
+          this.wallNx = p.nx * sgn; // 壁のある向き（火花を出す位置）
+          this.wallNz = p.nz * sgn;
+          race.emit("wall", this, vn);
+        }
       }
     }
 
@@ -481,6 +489,7 @@ export class Kart {
     this.y = p.groundY;
     this.vy = groundVy; // 坂に着地しても跳ね返らないよう路面の上下速度に合わせる
     this.airborne = false;
+    if (impact > 3) this.squashV -= Math.min(impact, 18) * 0.35;
     if (this.launched) {
       if (this.trick) {
         this.giveBoost(0.9);
@@ -505,6 +514,10 @@ export class Kart {
     m.body.rotation.z = this.lean + this.trickSpin * (this.index % 2 ? -1 : 1);
     this.wheelSpin += (this.speed * dt) / 0.4;
     for (const w of m.wheels) w.rotation.x = this.wheelSpin;
+    // 伸び縮み：足元を支点に縦へつぶれた分だけ横へふくらむ
+    this.squashV += (-260 * this.squash - 12 * this.squashV) * dt;
+    this.squash = clamp(this.squash + this.squashV * dt, -0.3, 0.25);
+    m.body.scale.set(1 - this.squash * 0.5, 1 + this.squash, 1 - this.squash * 0.5);
     for (const f of m.frontPivots) f.rotation.y = steer * 0.45;
     m.flame.visible = this.boostTimer > 0;
     if (m.flame.visible) {
