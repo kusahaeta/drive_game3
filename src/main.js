@@ -124,11 +124,13 @@ function feedback(type, kart, data) {
     case "driftBoost":
       if (me) shake(0.06 + data * 0.05, 60);
       break;
-    case "slam": // クラッシャーや隕石・爆発は近いほど大きく揺れる
+    case "slam": // クラッシャーや隕石・落雷・爆発は近いほど大きく揺れる
     case "meteor":
+    case "thunder":
     case "explode": {
       const d = Math.hypot(data.x - p.pos.x, data.z - p.pos.z);
       if (d < 50) shake((type === "slam" ? 0.5 : 0.6) * (1 - d / 50), 150);
+      if (type === "thunder" && d < 35) flash("zap");
       break;
     }
   }

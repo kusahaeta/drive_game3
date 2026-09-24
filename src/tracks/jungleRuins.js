@@ -1,13 +1,13 @@
 /**
  * ジャングル遺跡
- * 大岩が転がってくる密林の土の道 → 洞窟 → 台地の遺跡 → 川の谷を大ジャンプ → 木の吊り橋 → 崖沿いを下ってゴール。
+ * 丸太の振り子が道を横切る密林の土の道 → 洞窟 → 台地の遺跡 → 川の谷を大ジャンプ → 木の吊り橋 → 崖沿いを下ってゴール。
  * フォーマットの説明は src/tracks/index.js を参照。
  */
 export default {
   id: "jungle-ruins",
   name: "ジャングル遺跡",
   music: "assets/music/jungle.mp3",
-  description: "密林を抜けて古代遺跡へ。洞窟、谷越えジャンプ、木の吊り橋が待つ。",
+  description: "密林を抜けて古代遺跡へ。丸太の振り子の罠、洞窟、谷越えジャンプ、木の吊り橋が待つ。",
   laps: 3,
   roadWidth: 17,
   shoulderWidth: 6,
@@ -58,8 +58,16 @@ export default {
     { type: "bank", from: 0.75, to: 0.79, angle: 14 },
   ],
   hazards: [
-    // スタート直後の直線を、遺跡の罠の大岩が転がってくる
-    { type: "snowball", boulder: true, from: 0.015, to: 0.09, count: 2, speed: 11, radius: 2.4 },
+    // スタート直後の直線に、遺跡の罠の丸太の振り子の門が 3 つ。どの門も左右に丸太が 2 本吊られ、道幅いっぱいを振れる
+    // 1 つ目：2 本が逆向きに振れる（真ん中で打ち合わさって、離れる）
+    { type: "pendulum", at: 0.03, speed: 1.5 },
+    // 2 つ目：2 本がそろって振れる（すき間が左右に動く）
+    { type: "pendulum", at: 0.055, speed: 1.5, phase: 1.2, stagger: 0 },
+    // 3 つ目：少しずつずれて振れる
+    { type: "pendulum", at: 0.08, speed: 1.7, phase: 2.4, stagger: Math.PI / 2 },
+    // 洞窟を抜けた先の登りにも 2 つ。1 つ目は丸太 3 本がそろって振れる
+    { type: "pendulum", at: 0.25, lateral: [-5.7, 0, 5.7], amplitude: 0.32, speed: 1.8, stagger: 0 },
+    { type: "pendulum", at: 0.28, speed: 1.6, phase: 0.8, stagger: 0 },
   ],
   theme: {
     skyTop: "#4f9fd6",

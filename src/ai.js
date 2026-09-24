@@ -113,7 +113,13 @@ export class AIDriver {
       if ((h.path ?? track) !== path) continue;
       const ds = path.deltaS(h.s, k.proj.s);
       if (ds < -2 || ds > (h.look ?? 35)) continue;
-      const dl = h.lateral - lane;
+      let lateral = h.lateral;
+      if (h.vl != null) {
+        // 動いている敵は、追いついた時にいそうな所をよける
+        const tt = Math.min(1.5, Math.max(0, ds) / Math.max(5, k.speed - (h.vs ?? 0)));
+        lateral = Math.max(-h.hw, Math.min(h.hw, lateral + h.vl * tt));
+      }
+      const dl = lateral - lane;
       if (Math.abs(dl) < h.radius) shift += (dl > 0 ? -1 : 1) * (h.radius - Math.abs(dl)) * 1.1;
     }
     return shift;
